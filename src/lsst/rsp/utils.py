@@ -3,10 +3,10 @@
 import os
 import urllib
 from pathlib import Path
-
-import bokeh
-from kubernetes import client, config
 from typing import Optional
+
+import bokeh.io
+from kubernetes import client, config
 
 
 def format_bytes(n) -> str:

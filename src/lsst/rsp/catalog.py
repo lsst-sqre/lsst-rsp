@@ -1,51 +1,12 @@
-import functools
 import os
-import warnings
+from typing import Optional
 
 import pyvo
 import pyvo.auth.authsession
 import requests
+from deprecated import deprecated
 
 from .utils import get_access_token
-from typing import Optional
-
-
-def deprecated(new_name=""):
-    def deprecated(func):
-        """This is a decorator which can be used to mark functions
-        as deprecated. It will result in a warning being emitted
-        when the function is used."""
-
-        @functools.wraps(func)
-        def new_func(*args, **kwargs):
-            warnings.simplefilter(
-                "always", DeprecationWarning
-            )  # turn off filter
-            if new_name:
-                warnings.warn(
-                    f"Call to deprecated function {func.__name__}.  "
-                    + "This function may be removed at any point "
-                    + "in the future.  "
-                    + f"Please use {new_name} instead.",
-                    category=DeprecationWarning,
-                    stacklevel=2,
-                )
-            else:
-                warnings.warn(
-                    f"Call to deprecated function {func.__name__}.  "
-                    + "This function may be removed at any point "
-                    + "in the future.",
-                    category=DeprecationWarning,
-                    stacklevel=2,
-                )
-            warnings.simplefilter(
-                "default", DeprecationWarning
-            )  # reset filter
-            return func(*args, **kwargs)
-
-        return new_func
-
-    return deprecated
 
 
 def _get_tap_url() -> str:
@@ -77,7 +38,7 @@ def get_tap_service() -> pyvo.dal.TAPService:
     return pyvo.dal.TAPService(_get_tap_url(), _get_auth())
 
 
-@deprecated(new_name="get_tap_service")
+@deprecated(reason="Please use get_tap_service()")
 def get_catalog() -> pyvo.dal.TAPService:
     return get_tap_service()
 
