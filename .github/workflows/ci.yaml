@@ -14,10 +14,10 @@ jobs:
           - "3.10"
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v3
         with:
           python-version: ${{ matrix.python }}
 
@@ -29,14 +29,12 @@ jobs:
 
       - name: Cache tox environments
         id: cache-tox
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: .tox
-          # requirements/*.txt and pyproject.toml have versioning info
-          # that would impact the tox environment.
-          key: tox-${{ matrix.python }}-${{ hashFiles('requirements/*.txt') }}-${{ hashFiles('pyproject.toml') }}
+          key: tox-${{ matrix.python }}-${{ hashFiles('setup.cfg') }}-${{ hashFiles('pyproject.toml') }}
           restore-keys: |
-            tox-${{ matrix.python }}-${{ hashFiles('requirements/*.txt') }}-
+            tox-${{ matrix.python }}-${{ hashFiles('setup.cfg') }}-
 
       - name: Run tox
         run: tox -e py,coverage-report,typing
