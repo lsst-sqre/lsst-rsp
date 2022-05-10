@@ -2,6 +2,11 @@
 Collection of utilities, formerly in rsp_jupyter_utils.lab and
 rsp_jupyter_utils.helper
 """
+from importlib.metadata import PackageNotFoundError, version
+
+from .catalog import get_catalog, get_tap_service, retrieve_query
+from .forwarder import Forwarder
+from .logging import IPythonHandler, forward_lsst_log
 from .utils import (
     format_bytes,
     get_access_token,
@@ -11,10 +16,6 @@ from .utils import (
     get_pod,
     show_with_bokeh_server,
 )
-from .logging import IPythonHandler, forward_lsst_log
-from .forwarder import Forwarder
-from .catalog import get_catalog, get_tap_service, retrieve_query
-from importlib.metadata import PackageNotFoundError, version
 
 __version__: str
 """The application version string of (PEP 440 / SemVer compatible)."""
