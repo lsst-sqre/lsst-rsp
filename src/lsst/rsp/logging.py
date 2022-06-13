@@ -70,7 +70,7 @@ class IPythonHandler(logging.Handler):
         display(HTML(text))
 
 
-def forward_lsst_log(level: str):
+def forward_lsst_log(level: str) -> None:
     """Forward ``lsst.log`` level messages to Python logging.
     Parameters
     ----------

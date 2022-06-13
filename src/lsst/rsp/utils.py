@@ -1,15 +1,15 @@
-"""Utility functions for LSST JupyterLab notebook environment
-"""
+"""Utility functions for LSST JupyterLab notebook environment."""
+
 import os
 import urllib
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, Union
 
 import bokeh.io
 from kubernetes import client, config
 
 
-def format_bytes(n) -> str:
+def format_bytes(n: int) -> str:
     """Format bytes as text
 
     >>> format_bytes(1)
@@ -45,10 +45,10 @@ def get_hostname() -> str:
     return os.environ.get("HOSTNAME") or "localhost"
 
 
-def show_with_bokeh_server(obj):
+def show_with_bokeh_server(obj: Any) -> None:
     """Method to wrap bokeh with proxy URL"""
 
-    def jupyter_proxy_url(port):
+    def jupyter_proxy_url(port: Optional[int]) -> str:
         """
         Callable to configure Bokeh's show method when a proxy must be
         configured.
@@ -76,7 +76,7 @@ def show_with_bokeh_server(obj):
     bokeh.io.show(obj, notebook_url=jupyter_proxy_url)
 
 
-def get_pod():
+def get_pod() -> client.V1Pod:
     """Get pod record.  Throws an error if you're not running in a cluster."""
     config.load_incluster_config()
     api = client.CoreV1Api()
@@ -96,17 +96,17 @@ def get_node() -> str:
 
 def get_digest() -> str:
     """Extract image digest from pod, if we can."""
-    digest = ""
     try:
         img_id = get_pod().status.container_statuses[0].image_id
         # host/owner/repo@sha256:hash
         return (img_id.split("@")[-1]).split(":")[-1]
     except Exception:
         return ""  # We will just return the empty string
-    return digest
 
 
-def get_access_token(tokenfile=None, log=None) -> Optional[str]:
+def get_access_token(
+    tokenfile: Optional[Union[str, Path]] = None, log: Optional[Any] = None
+) -> Optional[str]:
     """Determine the access token from the mounted configmap (nublado2),
     secret (nublado1), or environment (either).  Prefer the mounted version
     since it can be updated, while the environment variable stays at whatever

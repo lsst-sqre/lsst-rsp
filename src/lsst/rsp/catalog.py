@@ -43,5 +43,5 @@ def get_catalog() -> pyvo.dal.TAPService:
     return get_tap_service()
 
 
-def retrieve_query(query_url) -> pyvo.dal.AsyncTAPJob:
+def retrieve_query(query_url: str) -> pyvo.dal.AsyncTAPJob:
     return pyvo.dal.AsyncTAPJob(query_url, _get_auth())

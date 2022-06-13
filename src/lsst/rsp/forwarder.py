@@ -16,7 +16,7 @@ class Forwarder(maproxy.proxyserver.ProxyServer):
     _logger = None
     _bind_addresses: List[Any] = []  # Fix this when we correct typing.
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._logger = logging.getLogger(__name__)
         self._logger.debug("Creating TCP Forwarder")
         sockets = tornado.netutil.bind_sockets(0, "")
@@ -39,7 +39,7 @@ class Forwarder(maproxy.proxyserver.ProxyServer):
             save_ioloop.make_current()
         self._logger.debug("TCP Forwarder created")
 
-    def get_ports(self):
+    def get_ports(self) -> List[Any]:
         """Returns a list of the ports the Forwarder is listening to."""
         return list(set(x[1] for x in self.bind_addresses))
 
