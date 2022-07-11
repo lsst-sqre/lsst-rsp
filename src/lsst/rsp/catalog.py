@@ -18,6 +18,14 @@ def _get_tap_url() -> str:
     return tapurl
 
 
+def _get_datalink_url() -> str:
+    return os.getenv("EXTERNAL_INSTANCE_URL", "") + "/api/datalink"
+
+
+def _get_cutout_url() -> str:
+    return os.getenv("EXTERNAL_INSTANCE_URL", "") + "/api/cutout"
+
+
 def _get_auth() -> Optional[pyvo.auth.authsession.AuthSession]:
     tap_url = _get_tap_url()
     s = requests.Session()
@@ -27,6 +35,8 @@ def _get_auth() -> Optional[pyvo.auth.authsession.AuthSession]:
     s.headers["Authorization"] = "Bearer " + tok
     auth = pyvo.auth.authsession.AuthSession()
     auth.credentials.set("lsst-token", s)
+    auth.add_security_method_for_url(_get_datalink_url(), "lsst-token")
+    auth.add_security_method_for_url(_get_cutout_url(), "lsst-token")
     auth.add_security_method_for_url(tap_url, "lsst-token")
     auth.add_security_method_for_url(tap_url + "/sync", "lsst-token")
     auth.add_security_method_for_url(tap_url + "/async", "lsst-token")
