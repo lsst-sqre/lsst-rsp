@@ -6,7 +6,15 @@ from pathlib import Path
 from typing import Any, Optional, Union
 
 import bokeh.io
-from kubernetes import client, config
+
+_NO_K8S = False
+
+try:
+    from kubernetes import client, config
+    from kubernetes.client.rest import ApiException
+    from kubernetes.config.config_exception import ConfigException
+except ImportError:
+    _NO_K8S = True
 
 
 def format_bytes(n: int) -> str:
@@ -48,7 +56,7 @@ def get_hostname() -> str:
 def show_with_bokeh_server(obj: Any) -> None:
     """Method to wrap bokeh with proxy URL"""
 
-    def jupyter_proxy_url(port: Optional[int]) -> str:
+    def jupyter_proxy_url(port: Optional[int] = None) -> str:
         """
         Callable to configure Bokeh's show method when a proxy must be
         configured.
@@ -73,63 +81,99 @@ def show_with_bokeh_server(obj: Any) -> None:
         full_url = urllib.parse.urljoin(user_url, proxy_url_path)
         return full_url
 
-    bokeh.io.show(obj, notebook_url=jupyter_proxy_url)
+    bokeh.io.show(obj=obj, notebook_url=jupyter_proxy_url())
 
 
-def get_pod() -> client.V1Pod:
-    """Get pod record.  Throws an error if you're not running in a cluster."""
-    config.load_incluster_config()
+def get_pod() -> Optional[client.V1Pod]:
+    """Try to get pod record.  If you don't have K8s or you can't use it
+    (e.g. nubladov3 does not grant any K8s access to the Lab pod) then
+    return None."""
+
+    if _NO_K8S:
+        return None
+    try:
+        config.load_incluster_config()
+    except ConfigException:
+        # We have the K8S libraries, but we don't have in-cluster config.
+        return None
     api = client.CoreV1Api()
     namespace = "default"
-    with open(
-        "/var/run/secrets/kubernetes.io/serviceaccount/namespace", "r"
-    ) as f:
-        namespace = f.readlines()[0]
-    pod = api.read_namespaced_pod(get_hostname(), namespace)
+    try:
+        with open(
+            "/var/run/secrets/kubernetes.io/serviceaccount/namespace", "r"
+        ) as f:
+            namespace = f.readlines()[0]
+    except FileNotFoundError:
+        pass  # use 'default' as namespace
+    try:
+        pod = api.read_namespaced_pod(get_hostname(), namespace)
+    except ApiException:
+        # Well, that didn't work.
+        return None
     return pod
 
 
 def get_node() -> str:
     """Extract node name from pod."""
-    return get_pod().spec.node_name
+    pod = get_pod()
+    if pod is not None:
+        return pod.spec.node_name
+    # In Nublado v3, we push this into the environment as K8S_NODE_NAME
+    return os.environ.get("K8S_NODE_NAME", "")
 
 
 def get_digest() -> str:
     """Extract image digest from pod, if we can."""
+    pod = get_pod()
+    # Image ID looks like host/[project/]owner/repo@sha256:hash
+    if pod is None:
+        # In Nublado v3 we push the digest directly into the image spec
+        image_id = os.environ.get("JUPYTER_IMAGE_SPEC", "")
+    else:
+        try:
+            image_id = pod.status.container_statuses[0].image_id
+        except Exception:
+            image_id = ""
     try:
-        img_id = get_pod().status.container_statuses[0].image_id
-        # host/owner/repo@sha256:hash
-        return (img_id.split("@")[-1]).split(":")[-1]
+        return (image_id.split("@")[-1]).split(":")[-1]
     except Exception:
         return ""  # We will just return the empty string
 
 
 def get_access_token(
     tokenfile: Optional[Union[str, Path]] = None, log: Optional[Any] = None
-) -> Optional[str]:
-    """Determine the access token from the mounted configmap (nublado2),
-    secret (nublado1), or environment (either).  Prefer the mounted version
-    since it can be updated, while the environment variable stays at whatever
-    it was when the process was started."""
-    tok = None
+) -> str:
+    """Determine the access token from the mounted location (nublado
+    3/2) or environment (any).  Prefer the mounted version since it
+    can be updated, while the environment variable stays at whatever
+    it was when the process was started.  Return the empty string if
+    the token cannot be determined.
+    """
+    tok = ""
     if tokenfile:
         # If a path was specified, trust it.
         tok = Path(tokenfile).read_text()
         tried_path = tokenfile
     else:
-        # Try the default token paths, nublado2 first, then nublado1
-        n2_tokenfile = "/opt/lsst/software/jupyterlab/environment/ACCESS_TOKEN"
-        tried_path = n2_tokenfile
-        token_path = Path(n2_tokenfile)
-        try:
-            tok = token_path.read_text()
-        except Exception:
-            # OK, it's not mounted.  Fall back to the environment.
-            pass
-    if not tok:
-        tok = os.environ.get("ACCESS_TOKEN", None)
-    if not tok:
-        raise ValueError(
-            f"Could not find token in env:ACCESS_TOKEN nor in {tried_path}"
-        )
+        jldir = "/opt/lsst/software/jupyterlab"
+        tried_path = ""
+        # Try the default token paths: nublado3, then nublado2, then fall
+        # back to the environment.
+        tokenfiles = [
+            f"{jldir}/secrets/token",
+            f"{jldir}/environment/ACCESS_TOKEN",
+        ]
+        for tf in tokenfiles:
+            if not tried_path:
+                tried_path = tf
+            else:
+                tried_path += f", {tf}"
+                token_path = Path(tf)
+            try:
+                tok = token_path.read_text()
+                break
+            except FileNotFoundError:
+                pass
+        if not tok:
+            tok = os.environ.get("ACCESS_TOKEN", "")
     return tok
