@@ -114,7 +114,8 @@ def get_pod() -> Optional[client.V1Pod]:
 
 
 def get_node() -> str:
-    """Extract node name from pod."""
+    """Extract node name from pod, or the empty string if we can't
+    determine it."""
     pod = get_pod()
     if pod is not None:
         return pod.spec.node_name
@@ -123,7 +124,8 @@ def get_node() -> str:
 
 
 def get_digest() -> str:
-    """Extract image digest from pod, if we can."""
+    """Extract image digest from pod, if we can.  Return the empty string
+    if we cannot."""
     pod = get_pod()
     # Image ID looks like host/[project/]owner/repo@sha256:hash
     if pod is None:
@@ -153,10 +155,8 @@ def get_access_token(
     if tokenfile:
         # If a path was specified, trust it.
         tok = Path(tokenfile).read_text()
-        tried_path = tokenfile
     else:
         jldir = "/opt/lsst/software/jupyterlab"
-        tried_path = ""
         # Try the default token paths: nublado3, then nublado2, then fall
         # back to the environment.
         tokenfiles = [
@@ -164,11 +164,7 @@ def get_access_token(
             f"{jldir}/environment/ACCESS_TOKEN",
         ]
         for tf in tokenfiles:
-            if not tried_path:
-                tried_path = tf
-            else:
-                tried_path += f", {tf}"
-                token_path = Path(tf)
+            token_path = Path(tf)
             try:
                 tok = token_path.read_text()
                 break
