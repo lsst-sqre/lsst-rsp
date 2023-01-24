@@ -81,7 +81,10 @@ def show_with_bokeh_server(obj: Any) -> None:
         full_url = urllib.parse.urljoin(user_url, proxy_url_path)
         return full_url
 
-    bokeh.io.show(obj=obj, notebook_url=jupyter_proxy_url())
+    # The type: ignore is needed because the alternate form of notebook_url
+    # (https://docs.bokeh.org/en/latest/docs/reference/io.html#bokeh.io.show)
+    # isn't in bokeh's type hints.
+    bokeh.io.show(obj=obj, notebook_url=jupyter_proxy_url)  # type:ignore
 
 
 def get_pod() -> Optional[client.V1Pod]:
