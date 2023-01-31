@@ -4,6 +4,7 @@ __all__ = ["IPythonHandler", "forward_lsst_log"]
 
 import html
 import logging
+import traceback
 
 from IPython.display import HTML, display
 
@@ -67,6 +68,16 @@ class IPythonHandler(logging.Handler):
             f'<pre style="{_pre_style}">{name_msg} {level_msg}: '
             + f"{message}</pre>"
         )
+        # Sometimes exception information is included so must be extracted.
+        if record.exc_info:
+            etype = record.exc_info[0]
+            evalue = record.exc_info[1]
+            tb = record.exc_info[2]
+            text += (
+                f'<pre style="{_pre_style}">'
+                + "".join(traceback.format_exception(etype, evalue, tb))
+                + "</pre>"
+            )
         display(HTML(text))
 
 
