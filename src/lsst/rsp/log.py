@@ -55,30 +55,35 @@ class IPythonHandler(logging.Handler):
     """
 
     def emit(self, record: logging.LogRecord) -> None:
-        name_color = "var(--jp-warn-color2)"
-        level_color = _level_colors.get(
-            record.levelname, _level_colors["DEFAULT"]
-        )
-        message = html.escape(record.getMessage())
-        name_msg = f'<span style="color: {name_color}">{record.name}</span>'
-        level_msg = (
-            f'<span style="color: {level_color}">{record.levelname}</span>'
-        )
-        text = (
-            f'<pre style="{_pre_style}">{name_msg} {level_msg}: '
-            + f"{message}</pre>"
-        )
-        # Sometimes exception information is included so must be extracted.
-        if record.exc_info:
-            etype = record.exc_info[0]
-            evalue = record.exc_info[1]
-            tb = record.exc_info[2]
-            text += (
-                f'<pre style="{_pre_style}">'
-                + "".join(traceback.format_exception(etype, evalue, tb))
-                + "</pre>"
+        try:
+            name_color = "var(--jp-warn-color2)"
+            level_color = _level_colors.get(
+                record.levelname, _level_colors["DEFAULT"]
             )
-        display(HTML(text))
+            message = html.escape(record.getMessage())
+            name_msg = (
+                f'<span style="color: {name_color}">{record.name}</span>'
+            )
+            level_msg = (
+                f'<span style="color: {level_color}">{record.levelname}</span>'
+            )
+            text = (
+                f'<pre style="{_pre_style}">{name_msg} {level_msg}: '
+                + f"{message}</pre>"
+            )
+            # Sometimes exception information is included so must be extracted.
+            if record.exc_info:
+                etype = record.exc_info[0]
+                evalue = record.exc_info[1]
+                tb = record.exc_info[2]
+                text += (
+                    f'<pre style="{_pre_style}">'
+                    + "".join(traceback.format_exception(etype, evalue, tb))
+                    + "</pre>"
+                )
+            display(HTML(text))
+        except Exception:
+            self.handleError(record)
 
 
 def forward_lsst_log(level: str) -> None:
