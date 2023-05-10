@@ -88,10 +88,15 @@ def show_with_bokeh_server(obj: Any) -> None:
 
 
 def get_pod() -> Optional[client.V1Pod]:
-    """Try to get pod record.  If you don't have K8s or you can't use it
-    (e.g. nubladov3 does not grant any K8s access to the Lab pod) then
-    return None."""
+    """Get the Kubernetes object for the pod in which this is running.
 
+    Returns
+    -------
+    kubernetes.client.V1Pod or None
+        Kubernetes object for the pod in which this code is running, or `None`
+        if not running inside Kubernetes or running without access to the
+        Kubernetes API (the normal case for Nublado v3 and later).
+    """
     if _NO_K8S:
         return None
     try:
@@ -117,32 +122,53 @@ def get_pod() -> Optional[client.V1Pod]:
 
 
 def get_node() -> str:
-    """Extract node name from pod, or the empty string if we can't
-    determine it."""
+    """Return the name of the current Kubernetes node.
+
+    Returns
+    -------
+    str
+        Name of the Kubernetes node on which this code is running, or the
+        empty string if the node could not be determined.
+    """
+    node = os.environ.get("KUBERNETES_NODE_NAME")
+    if node:
+        return node
+
+    # Fallback for Nublado v2, which got this information from the Kubernetes
+    # API (and therefore had to have access to the Kubernetes API).
     pod = get_pod()
     if pod is not None:
         return pod.spec.node_name
-    # In Nublado v3, we push this into the environment as K8S_NODE_NAME
-    return os.environ.get("K8S_NODE_NAME", "")
+    else:
+        return ""
 
 
 def get_digest() -> str:
-    """Extract image digest from pod, if we can.  Return the empty string
-    if we cannot."""
-    pod = get_pod()
-    # Image ID looks like host/[project/]owner/repo@sha256:hash
-    if pod is None:
-        # In Nublado v3 we push the digest directly into the image spec
-        image_id = os.environ.get("JUPYTER_IMAGE_SPEC", "")
-    else:
-        try:
-            image_id = pod.status.container_statuses[0].image_id
-        except Exception:
-            image_id = ""
+    """Return the digest of the current Docker image.
+
+    Returns
+    -------
+    str
+        Digest of the Docker image this code is running inside, or the empty
+        string if the digest could not be determined.
+    """
+    reference = os.environ.get("JUPYTER_IMAGE_SPEC", "")
+
+    # Fallback for Nublado v2, which got this information from the Kubernetes
+    # API (and therefore had to have access to the Kubernetes API).
+    if not reference:
+        pod = get_pod()
+        if pod:
+            try:
+                reference = pod.status.container_statuses[0].image_id
+            except Exception:
+                pass
+
     try:
-        return (image_id.split("@")[-1]).split(":")[-1]
+        # Reference looks like host/[project/]owner/repo@sha256:hash
+        return (reference.split("@")[-1]).split(":")[-1]
     except Exception:
-        return ""  # We will just return the empty string
+        return ""
 
 
 def get_access_token(
