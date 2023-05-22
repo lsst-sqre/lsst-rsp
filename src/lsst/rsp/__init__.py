@@ -7,7 +7,6 @@ from importlib.metadata import PackageNotFoundError, version
 from .catalog import (
     get_catalog,
     get_obstap_service,
-    get_ssotap_service,
     get_tap_service,
     retrieve_query,
 )
@@ -46,7 +45,6 @@ __all__ = [
     "get_pod",
     "get_tap_service",
     "get_obstap_service",
-    "get_ssotap_service",
     "retrieve_query",
     "get_hostname",
     "show_with_bokeh_server",
