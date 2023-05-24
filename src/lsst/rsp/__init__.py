@@ -4,7 +4,12 @@ rsp_jupyter_utils.helper
 """
 from importlib.metadata import PackageNotFoundError, version
 
-from .catalog import get_catalog, get_tap_service, retrieve_query
+from .catalog import (
+    get_catalog,
+    get_obstap_service,
+    get_tap_service,
+    retrieve_query,
+)
 from .forwarder import Forwarder
 from .log import IPythonHandler, forward_lsst_log
 from .utils import (
@@ -39,6 +44,7 @@ __all__ = [
     "get_node",
     "get_pod",
     "get_tap_service",
+    "get_obstap_service",
     "retrieve_query",
     "get_hostname",
     "show_with_bokeh_server",
