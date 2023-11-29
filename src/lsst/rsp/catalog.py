@@ -13,12 +13,14 @@ def get_catalog() -> pyvo.dal.TAPService:
     return get_tap_service("tap")
 
 
-@deprecated(reason='Please use get_tap_service("obstap")')
+@deprecated(reason='Please use get_tap_service("live")')
 def get_obstap_service() -> pyvo.dal.TAPService:
-    return get_tap_service("obstap")
+    return get_tap_service("live")
 
 
 def get_tap_service(*args: str) -> pyvo.dal.TAPService:
+    """Returns a TAP service instance to interact with the
+    requested TAP service."""
     if len(args) == 0:
         warnings.warn(
             'get_tap_service() is deprecated, use get_tap_service("tap")',
@@ -29,7 +31,12 @@ def get_tap_service(*args: str) -> pyvo.dal.TAPService:
     else:
         database = args[0]
 
-    if database in ["tap", "obstap", "ssotap"]:
+    # We renamed the name of the TAP service from obstap
+    # to live
+    if database == "obstap":
+        database = "live"
+
+    if database in ["live", "tap", "ssotap"]:
         tap_url = get_service_url(database)
     else:
         raise Exception(database + " is not a valid tap service")
