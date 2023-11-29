@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Any, Optional, Union
 
 import bokeh.io
+import pyvo.auth.authsession
+import requests
+
 
 _NO_K8S = False
 
@@ -51,6 +54,51 @@ def format_bytes(n: int) -> str:
 def get_hostname() -> str:
     """Utility function to return hostname or, failing that, "localhost"."""
     return os.environ.get("HOSTNAME") or "localhost"
+
+
+def get_service_url(name: str, env_name=None) -> str:
+    if not env_name:
+        env_name = name.upper()
+
+    url = os.getenv(f"EXTERNAL_{env_name}_URL")
+    if url:
+        return url
+
+    fqdn = os.getenv("EXTERNAL_INSTANCE_URL") or ""
+    path = os.getenv(f"{env_name}_ROUTE") or f"/api/{name}"
+    return f"{fqdn}/{path}"
+
+
+def get_pyvo_auth() -> Optional[pyvo.auth.authsession.AuthSession]:
+    """Utility function to create a pyvo compatible auth object."""
+    tap_url = get_service_url("tap")
+    obstap_url = get_service_url("obstap")
+    ssotap_url = get_service_url("ssotap")
+    siav2_url = get_service_url("siav2")
+    s = requests.Session()
+    tok = get_access_token()
+    if not tok:
+        return None
+    s.headers["Authorization"] = "Bearer " + tok
+    auth = pyvo.auth.authsession.AuthSession()
+    auth.credentials.set("lsst-token", s)
+    auth.add_security_method_for_url(get_service_url("cutout"), "lsst-token")
+    auth.add_security_method_for_url(get_service_url("datalink"), "lsst-token")
+    auth.add_security_method_for_url(siav2_url, "lsst-token")
+    auth.add_security_method_for_url(siav2_url + "/query", "lsst-token")
+    auth.add_security_method_for_url(tap_url, "lsst-token")
+    auth.add_security_method_for_url(tap_url + "/sync", "lsst-token")
+    auth.add_security_method_for_url(tap_url + "/async", "lsst-token")
+    auth.add_security_method_for_url(tap_url + "/tables", "lsst-token")
+    auth.add_security_method_for_url(obstap_url, "lsst-token")
+    auth.add_security_method_for_url(obstap_url + "/sync", "lsst-token")
+    auth.add_security_method_for_url(obstap_url + "/async", "lsst-token")
+    auth.add_security_method_for_url(obstap_url + "/tables", "lsst-token")
+    auth.add_security_method_for_url(ssotap_url, "lsst-token")
+    auth.add_security_method_for_url(ssotap_url + "/sync", "lsst-token")
+    auth.add_security_method_for_url(ssotap_url + "/async", "lsst-token")
+    auth.add_security_method_for_url(ssotap_url + "/tables", "lsst-token")
+    return auth
 
 
 def show_with_bokeh_server(obj: Any) -> None:
