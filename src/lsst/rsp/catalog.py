@@ -1,6 +1,4 @@
-import os
 import warnings
-from typing import Optional
 
 import pyvo
 from deprecated import deprecated

@@ -9,7 +9,6 @@ import bokeh.io
 import pyvo.auth.authsession
 import requests
 
-
 _NO_K8S = False
 
 try:
@@ -56,7 +55,7 @@ def get_hostname() -> str:
     return os.environ.get("HOSTNAME") or "localhost"
 
 
-def get_service_url(name: str, env_name=None) -> str:
+def get_service_url(name: str, env_name: Optional[str] = None) -> str:
     if not env_name:
         env_name = name.upper()
 
@@ -129,10 +128,7 @@ def show_with_bokeh_server(obj: Any) -> None:
         full_url = urllib.parse.urljoin(user_url, proxy_url_path)
         return full_url
 
-    # The type: ignore is needed because the alternate form of notebook_url
-    # (https://docs.bokeh.org/en/latest/docs/reference/io.html#bokeh.io.show)
-    # isn't in bokeh's type hints.
-    bokeh.io.show(obj=obj, notebook_url=jupyter_proxy_url)  # type:ignore
+    bokeh.io.show(obj=obj, notebook_url=jupyter_proxy_url)
 
 
 def get_pod() -> Optional[client.V1Pod]:
