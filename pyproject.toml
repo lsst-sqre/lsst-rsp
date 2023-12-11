@@ -21,11 +21,19 @@ classifiers = [
     "Typing :: Typed",
 ]
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "bokeh",
+    "Deprecated",
+    "IPython",
+    "pyvo"
+]
 dynamic = ["version"]
 
 [project.optional-dependencies]
 dev = [
+    # Typing
+    "types-deprecated",
+    "types-requests",
     # Testing
     "coverage[toml]",
     "pytest",
@@ -77,7 +85,7 @@ exclude = '''
 [tool.coverage.run]
 parallel = true
 branch = true
-source = ["lsst-rsp"]
+source = ["lsst"]
 
 [tool.coverage.paths]
 source = ["src", ".tox/*/site-packages"]

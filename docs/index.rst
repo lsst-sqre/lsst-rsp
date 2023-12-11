@@ -1,9 +1,9 @@
 :og:description: Short one-sentence description of the package
 :html_theme.sidebar_secondary.remove:
 
-#######
+########
 lsst-rsp
-#######
+########
 
 Short one-sentence description of the package
 

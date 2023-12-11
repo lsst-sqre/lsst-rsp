@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from example import __version__
+from lsst.rsp import __version__
 
 
 def test_version() -> None:

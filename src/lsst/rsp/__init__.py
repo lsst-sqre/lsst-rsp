@@ -1,5 +1,4 @@
-"""
-Collection of utilities, formerly in rsp_jupyter_utils.lab and
+"""Collection of utilities, formerly in rsp_jupyter_utils.lab and
 rsp_jupyter_utils.helper
 """
 from importlib.metadata import PackageNotFoundError, version
@@ -10,7 +9,6 @@ from .catalog import (
     get_tap_service,
     retrieve_query,
 )
-from .forwarder import Forwarder
 from .log import IPythonHandler, forward_lsst_log
 from .service import get_datalink_result, get_siav2_service
 from .utils import (
@@ -35,7 +33,6 @@ except PackageNotFoundError:
 
 __all__ = [
     "__version__",
-    "Forwarder",
     "IPythonHandler",
     "format_bytes",
     "forward_lsst_log",
