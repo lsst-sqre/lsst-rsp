@@ -1,6 +1,15 @@
 from pyvo.dal import SIA2Service
+from pyvo.dal.adhoc import DatalinkResults
+from pyvo.dal.sia2 import ObsCoreRecord
 
 from .utils import get_pyvo_auth, get_service_url
+
+
+def get_datalink_result(result: ObsCoreRecord) -> DatalinkResults:
+    """Helper function to return the datalink part of the result."""
+    return DatalinkResults.from_result_url(
+        result.getdataurl(), session=get_pyvo_auth()
+    )
 
 
 def get_siav2_service(label: str) -> SIA2Service:
