@@ -53,42 +53,6 @@ jobs:
           python-version: ${{ matrix.python }}
           tox-envs: "py,typing"
 
-  docs:
-
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0 # full history for setuptools_scm
-
-      - name: Install Graphviz
-        run: sudo apt-get install graphviz
-
-      - name: Run tox
-        uses: lsst-sqre/run-tox@v1
-        with:
-          python-version: "3.11"
-          tox-envs: "docs"
-          # Add docs-linkcheck when the docs and PyPI package are published
-          # tox-envs: "docs,docs-linkcheck"
-
-      # Only attempt documentation uploads for tagged releases and pull
-      # requests from ticket branches in the same repository.  This avoids
-      # version clutter in the docs and failures when a PR doesn't have access
-      # to secrets.
-      - name: Upload to LSST the Docs
-        uses: lsst-sqre/ltd-upload@v1
-        with:
-          project: "lsst-rsp"
-          dir: "docs/_build/html"
-          username: ${{ secrets.LTD_USERNAME }}
-          password: ${{ secrets.LTD_PASSWORD }}
-        if: >
-          github.event_name != 'merge_group'
-          && (github.event_name != 'pull_request'
-              || startsWith(github.head_ref, 'tickets/'))
 
   test-packaging:
 
@@ -114,7 +78,7 @@ jobs:
     # See https://github.com/lsst-sqre/build-and-publish-to-pypi
     name: Upload release to PyPI
     runs-on: ubuntu-latest
-    needs: [lint, test, docs, test-packaging]
+    needs: [lint, test, test-packaging]
     environment:
       name: pypi
       url: https://pypi.org/p/lsst-rsp
