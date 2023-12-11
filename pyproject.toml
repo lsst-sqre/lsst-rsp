@@ -41,7 +41,6 @@ dev = [
     "pre-commit",
     "mypy",
     # Documentation
-    "documenteer[guide]<1",
     "scriv",
 ]
 
@@ -108,7 +107,6 @@ exclude_lines = [
 profile = "black"
 line_length = 79
 known_first_party = ["lsst-rsp", "tests"]
-skip = ["docs/conf.py"]
 
 [tool.mypy]
 disallow_untyped_defs = true
@@ -156,9 +154,6 @@ python_files = [
 # Reference for settings: https://beta.ruff.rs/docs/settings/
 # Reference for rules: https://beta.ruff.rs/docs/rules/
 [tool.ruff]
-exclude = [
-    "docs/**",
-]
 line-length = 79
 ignore = [
     "ANN101",  # self should not have a type annotation
