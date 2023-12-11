@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any, Optional, Union
 
 import bokeh.io
+import pyvo.auth.authsession
+import requests
 
 _NO_K8S = False
 
@@ -53,6 +55,51 @@ def get_hostname() -> str:
     return os.environ.get("HOSTNAME") or "localhost"
 
 
+def get_service_url(name: str, env_name: Optional[str] = None) -> str:
+    if not env_name:
+        env_name = name.upper()
+
+    url = os.getenv(f"EXTERNAL_{env_name}_URL")
+    if url:
+        return url
+
+    fqdn = os.getenv("EXTERNAL_INSTANCE_URL") or ""
+    path = os.getenv(f"{env_name}_ROUTE") or f"/api/{name}"
+    return f"{fqdn}/{path}"
+
+
+def get_pyvo_auth() -> Optional[pyvo.auth.authsession.AuthSession]:
+    """Utility function to create a pyvo compatible auth object."""
+    tap_url = get_service_url("tap")
+    obstap_url = get_service_url("obstap")
+    ssotap_url = get_service_url("ssotap")
+    siav2_url = get_service_url("siav2")
+    s = requests.Session()
+    tok = get_access_token()
+    if not tok:
+        return None
+    s.headers["Authorization"] = "Bearer " + tok
+    auth = pyvo.auth.authsession.AuthSession()
+    auth.credentials.set("lsst-token", s)
+    auth.add_security_method_for_url(get_service_url("cutout"), "lsst-token")
+    auth.add_security_method_for_url(get_service_url("datalink"), "lsst-token")
+    auth.add_security_method_for_url(siav2_url, "lsst-token")
+    auth.add_security_method_for_url(siav2_url + "/query", "lsst-token")
+    auth.add_security_method_for_url(tap_url, "lsst-token")
+    auth.add_security_method_for_url(tap_url + "/sync", "lsst-token")
+    auth.add_security_method_for_url(tap_url + "/async", "lsst-token")
+    auth.add_security_method_for_url(tap_url + "/tables", "lsst-token")
+    auth.add_security_method_for_url(obstap_url, "lsst-token")
+    auth.add_security_method_for_url(obstap_url + "/sync", "lsst-token")
+    auth.add_security_method_for_url(obstap_url + "/async", "lsst-token")
+    auth.add_security_method_for_url(obstap_url + "/tables", "lsst-token")
+    auth.add_security_method_for_url(ssotap_url, "lsst-token")
+    auth.add_security_method_for_url(ssotap_url + "/sync", "lsst-token")
+    auth.add_security_method_for_url(ssotap_url + "/async", "lsst-token")
+    auth.add_security_method_for_url(ssotap_url + "/tables", "lsst-token")
+    return auth
+
+
 def show_with_bokeh_server(obj: Any) -> None:
     """Method to wrap bokeh with proxy URL"""
 
@@ -81,10 +128,7 @@ def show_with_bokeh_server(obj: Any) -> None:
         full_url = urllib.parse.urljoin(user_url, proxy_url_path)
         return full_url
 
-    # The type: ignore is needed because the alternate form of notebook_url
-    # (https://docs.bokeh.org/en/latest/docs/reference/io.html#bokeh.io.show)
-    # isn't in bokeh's type hints.
-    bokeh.io.show(obj=obj, notebook_url=jupyter_proxy_url)  # type:ignore
+    bokeh.io.show(obj=obj, notebook_url=jupyter_proxy_url)
 
 
 def get_pod() -> Optional[client.V1Pod]:
