@@ -23,7 +23,6 @@ classifiers = [
 requires-python = ">=3.11"
 # FIXME When pyvo 1.5.0 is released, remove pin.
 dependencies = [
-    "bokeh",
     "Deprecated",
     "IPython",
     "pyvo@git+https://github.com/astropy/pyvo.git@7682a1809cb2169cc2ffd9313feb6a4abd7f7e37"

@@ -1,11 +1,9 @@
 """Utility functions for LSST JupyterLab notebook environment."""
 
 import os
-import urllib
 from pathlib import Path
 from typing import Any, Optional, Union
 
-import bokeh.io
 import pyvo
 import requests
 from deprecated import deprecated
@@ -91,36 +89,6 @@ def get_pyvo_auth() -> Optional[pyvo.auth.authsession.AuthSession]:
     auth.add_security_method_for_url(ssotap_url + "/async", "lsst-token")
     auth.add_security_method_for_url(ssotap_url + "/tables", "lsst-token")
     return auth
-
-
-def show_with_bokeh_server(obj: Any) -> None:
-    """Method to wrap bokeh with proxy URL"""
-
-    def jupyter_proxy_url(port: Optional[int] = None) -> str:
-        """Callable to configure Bokeh's show method when a proxy must be
-        configured.
-
-        If port is None we're asking about the URL
-        for the origin header.
-
-        https://docs.bokeh.org/en/latest/docs/user_guide/jupyter.html
-        """
-        base_url = os.environ["EXTERNAL_INSTANCE_URL"]
-        host = urllib.parse.urlparse(base_url).netloc
-
-        # If port is None we're asking for the URL origin
-        # so return the public hostname.
-        if port is None:
-            return host
-
-        service_url_path = os.environ["JUPYTERHUB_SERVICE_PREFIX"]
-        proxy_url_path = "proxy/%d" % port
-
-        user_url = urllib.parse.urljoin(base_url, service_url_path)
-        full_url = urllib.parse.urljoin(user_url, proxy_url_path)
-        return full_url
-
-    bokeh.io.show(obj=obj, notebook_url=jupyter_proxy_url)
 
 
 @deprecated(

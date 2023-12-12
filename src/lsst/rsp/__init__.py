@@ -18,7 +18,6 @@ from .utils import (
     get_hostname,
     get_node,
     get_pod,
-    show_with_bokeh_server,
 )
 
 __version__: str
@@ -47,5 +46,4 @@ __all__ = [
     "get_obstap_service",
     "retrieve_query",
     "get_hostname",
-    "show_with_bokeh_server",
 ]
