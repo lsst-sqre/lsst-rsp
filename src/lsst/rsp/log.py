@@ -50,8 +50,9 @@ class IPythonHandler(logging.Handler):
     * The message itself.
     It can be enabled (forcing other log handlers to be removed) with:
     .. code-block:: python
-       logging.basicConfig(level=logging.INFO, force=True,
-                           handlers=[IPythonHandler()])
+       logging.basicConfig(
+           level=logging.INFO, force=True, handlers=[IPythonHandler()]
+       )
     """
 
     def emit(self, record: logging.LogRecord) -> None:
@@ -88,6 +89,7 @@ class IPythonHandler(logging.Handler):
 
 def forward_lsst_log(level: str) -> None:
     """Forward ``lsst.log`` level messages to Python logging.
+
     Parameters
     ----------
     level : `str`

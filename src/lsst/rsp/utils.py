@@ -1,22 +1,12 @@
 """Utility functions for LSST JupyterLab notebook environment."""
 
 import os
-import urllib
 from pathlib import Path
 from typing import Any, Optional, Union
 
-import bokeh.io
-import pyvo.auth.authsession
+import pyvo
 import requests
-
-_NO_K8S = False
-
-try:
-    from kubernetes import client, config
-    from kubernetes.client.rest import ApiException
-    from kubernetes.config.config_exception import ConfigException
-except ImportError:
-    _NO_K8S = True
+from deprecated import deprecated
 
 
 def format_bytes(n: int) -> str:
@@ -56,6 +46,7 @@ def get_hostname() -> str:
 
 
 def get_service_url(name: str, env_name: Optional[str] = None) -> str:
+    """Get our best guess at the URL for the requested service."""
     if not env_name:
         env_name = name.upper()
 
@@ -100,69 +91,14 @@ def get_pyvo_auth() -> Optional[pyvo.auth.authsession.AuthSession]:
     return auth
 
 
-def show_with_bokeh_server(obj: Any) -> None:
-    """Method to wrap bokeh with proxy URL"""
-
-    def jupyter_proxy_url(port: Optional[int] = None) -> str:
-        """
-        Callable to configure Bokeh's show method when a proxy must be
-        configured.
-
-        If port is None we're asking about the URL
-        for the origin header.
-
-        https://docs.bokeh.org/en/latest/docs/user_guide/jupyter.html
-        """
-        base_url = os.environ["EXTERNAL_INSTANCE_URL"]
-        host = urllib.parse.urlparse(base_url).netloc
-
-        # If port is None we're asking for the URL origin
-        # so return the public hostname.
-        if port is None:
-            return host
-
-        service_url_path = os.environ["JUPYTERHUB_SERVICE_PREFIX"]
-        proxy_url_path = "proxy/%d" % port
-
-        user_url = urllib.parse.urljoin(base_url, service_url_path)
-        full_url = urllib.parse.urljoin(user_url, proxy_url_path)
-        return full_url
-
-    bokeh.io.show(obj=obj, notebook_url=jupyter_proxy_url)
-
-
-def get_pod() -> Optional[client.V1Pod]:
-    """Get the Kubernetes object for the pod in which this is running.
-
-    Returns
-    -------
-    kubernetes.client.V1Pod or None
-        Kubernetes object for the pod in which this code is running, or `None`
-        if not running inside Kubernetes or running without access to the
-        Kubernetes API (the normal case for Nublado v3 and later).
+@deprecated(
+    reason="get_pod() always returns None in RSPs running Nubladov3 or later"
+)
+def get_pod() -> None:
+    """No longer useful.  Formerly used to return the Kubernetes object for
+    the pod in which this code was running.
     """
-    if _NO_K8S:
-        return None
-    try:
-        config.load_incluster_config()
-    except ConfigException:
-        # We have the K8S libraries, but we don't have in-cluster config.
-        return None
-    api = client.CoreV1Api()
-    namespace = "default"
-    try:
-        with open(
-            "/var/run/secrets/kubernetes.io/serviceaccount/namespace", "r"
-        ) as f:
-            namespace = f.readlines()[0]
-    except FileNotFoundError:
-        pass  # use 'default' as namespace
-    try:
-        pod = api.read_namespaced_pod(get_hostname(), namespace)
-    except ApiException:
-        # Well, that didn't work.
-        return None
-    return pod
+    return None
 
 
 def get_node() -> str:
@@ -174,17 +110,7 @@ def get_node() -> str:
         Name of the Kubernetes node on which this code is running, or the
         empty string if the node could not be determined.
     """
-    node = os.environ.get("KUBERNETES_NODE_NAME")
-    if node:
-        return node
-
-    # Fallback for Nublado v2, which got this information from the Kubernetes
-    # API (and therefore had to have access to the Kubernetes API).
-    pod = get_pod()
-    if pod is not None:
-        return pod.spec.node_name
-    else:
-        return ""
+    return os.environ.get("KUBERNETES_NODE_NAME", "")
 
 
 def get_digest() -> str:
@@ -196,23 +122,7 @@ def get_digest() -> str:
         Digest of the Docker image this code is running inside, or the empty
         string if the digest could not be determined.
     """
-    reference = os.environ.get("JUPYTER_IMAGE_SPEC", "")
-
-    # Fallback for Nublado v2, which got this information from the Kubernetes
-    # API (and therefore had to have access to the Kubernetes API).
-    if not reference:
-        pod = get_pod()
-        if pod:
-            try:
-                reference = pod.status.container_statuses[0].image_id
-            except Exception:
-                pass
-
-    try:
-        # Reference looks like host/[project/]owner/repo@sha256:hash
-        return (reference.split("@")[-1]).split(":")[-1]
-    except Exception:
-        return ""
+    return os.environ.get("JUPYTER_IMAGE_SPEC", "")
 
 
 def get_access_token(

@@ -8,17 +8,20 @@ from .utils import get_pyvo_auth, get_service_url
 
 @deprecated(reason='Please use get_tap_service("tap")')
 def get_catalog() -> pyvo.dal.TAPService:
+    """Deprecated alias for get_tap_service("tap")"""
     return get_tap_service("tap")
 
 
 @deprecated(reason='Please use get_tap_service("live")')
 def get_obstap_service() -> pyvo.dal.TAPService:
+    """Deprecated alias for get_tap_service("tap")"""
     return get_tap_service("live")
 
 
 def get_tap_service(*args: str) -> pyvo.dal.TAPService:
     """Returns a TAP service instance to interact with the
-    requested TAP service."""
+    requested TAP service.
+    """
     if len(args) == 0:
         warnings.warn(
             'get_tap_service() is deprecated, use get_tap_service("tap")',
@@ -54,6 +57,7 @@ def get_tap_service(*args: str) -> pyvo.dal.TAPService:
 
 
 def retrieve_query(query_url: str) -> pyvo.dal.AsyncTAPJob:
+    """Retrieve job corresponding to a particular query URL."""
     #
     # This is not ideal, but warning appears because require pyvo does
     # not register uws:Sync and uws:Async.  It's harmless.  The broadness

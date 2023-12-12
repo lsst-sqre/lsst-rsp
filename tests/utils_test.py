@@ -6,6 +6,7 @@ from lsst.rsp import format_bytes
 
 
 def test_format_bytes() -> None:
+    """Test human-readable names for numeric byte inputs."""
     assert format_bytes(1) == "1 B"
     assert format_bytes(1234) == "1.23 kB"
     assert format_bytes(12345678) == "12.35 MB"
