@@ -12,6 +12,7 @@ from .catalog import (
 )
 from .forwarder import Forwarder
 from .log import IPythonHandler, forward_lsst_log
+from .service import get_datalink_result, get_siav2_service
 from .utils import (
     format_bytes,
     get_access_token,
@@ -40,10 +41,12 @@ __all__ = [
     "forward_lsst_log",
     "get_access_token",
     "get_catalog",
+    "get_datalink_result",
     "get_digest",
     "get_node",
     "get_pod",
     "get_tap_service",
+    "get_siav2_service",
     "get_obstap_service",
     "retrieve_query",
     "get_hostname",
