@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any, Optional, Union
 
 import bokeh.io
+import pyvo
+import requests
 from deprecated import deprecated
 
 
@@ -46,6 +48,7 @@ def get_hostname() -> str:
 
 
 def get_service_url(name: str, env_name: Optional[str] = None) -> str:
+    """Get our best guess at the URL for the requested service."""
     if not env_name:
         env_name = name.upper()
 

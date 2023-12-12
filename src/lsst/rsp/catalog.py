@@ -20,7 +20,8 @@ def get_obstap_service() -> pyvo.dal.TAPService:
 
 def get_tap_service(*args: str) -> pyvo.dal.TAPService:
     """Returns a TAP service instance to interact with the
-    requested TAP service."""
+    requested TAP service.
+    """
     if len(args) == 0:
         warnings.warn(
             'get_tap_service() is deprecated, use get_tap_service("tap")',
