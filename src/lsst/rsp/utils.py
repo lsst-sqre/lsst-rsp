@@ -64,7 +64,7 @@ def get_service_url(name: str, env_name: Optional[str] = None) -> str:
         return url
 
     fqdn = os.getenv("EXTERNAL_INSTANCE_URL") or ""
-    path = os.getenv(f"{env_name}_ROUTE") or f"/api/{name}"
+    path = os.getenv(f"{env_name}_ROUTE") or f"api/{name}"
     return f"{fqdn}/{path}"
 
 
