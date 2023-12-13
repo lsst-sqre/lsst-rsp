@@ -61,7 +61,7 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 # https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html
 where = ["src"]
-include = ["lsst-rsp*"]
+include = ["lsst"]
 
 [tool.black]
 line-length = 79
