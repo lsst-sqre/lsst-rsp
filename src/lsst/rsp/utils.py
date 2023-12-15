@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 from typing import Any, Optional, Union
+from urllib.parse import urljoin
 
 import pyvo
 import requests
@@ -54,9 +55,9 @@ def get_service_url(name: str, env_name: Optional[str] = None) -> str:
     if url:
         return url
 
-    fqdn = os.getenv("EXTERNAL_INSTANCE_URL") or ""
+    base = os.getenv("EXTERNAL_INSTANCE_URL") or ""
     path = os.getenv(f"{env_name}_ROUTE") or f"api/{name}"
-    return f"{fqdn}/{path}"
+    return urljoin(base, path)
 
 
 def get_pyvo_auth() -> Optional[pyvo.auth.authsession.AuthSession]:
