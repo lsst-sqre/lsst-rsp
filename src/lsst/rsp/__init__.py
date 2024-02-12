@@ -1,6 +1,7 @@
 """Collection of utilities, formerly in rsp_jupyter_utils.lab and
 rsp_jupyter_utils.helper
 """
+
 from importlib.metadata import PackageNotFoundError, version
 
 from .catalog import (
