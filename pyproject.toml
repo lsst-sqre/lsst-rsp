@@ -1,7 +1,7 @@
 [project]
 # https://packaging.python.org/en/latest/specifications/declaring-project-metadata/
 name = "lsst-rsp"
-description = "Short one-sentence description of the package"
+description = "Utility functions for the Rubin Science Platform"
 license = {file = "LICENSE"}
 readme= "README.md"
 keywords = [
@@ -44,7 +44,7 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://lsst-rsp.lsst.io"
+Homepage = "https://rsp.lsst.io/"
 Source = "https://github.com/lsst-sqre/lsst-rsp"
 
 [build-system]
