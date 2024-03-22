@@ -22,11 +22,10 @@ classifiers = [
     "Typing :: Typed",
 ]
 requires-python = ">=3.11"
-# FIXME When pyvo 1.5.0 is released, remove pin.
 dependencies = [
-    "Deprecated",
-    "IPython",
-    "pyvo"
+    "Deprecated<2",
+    "IPython<9",
+    "pyvo>=1.5.0,<2"
 ]
 dynamic = ["version"]
 
@@ -39,7 +38,6 @@ dev = [
     "coverage[toml]",
     "pytest",
     "pytest-asyncio",
-    "pre-commit",
     "mypy",
     # Documentation
     "scriv",
