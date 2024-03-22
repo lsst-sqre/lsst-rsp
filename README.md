@@ -27,13 +27,13 @@ make init
 You can run tests with [tox](https://tox.wiki/en/latest/):
 
 ```sh
-tox
+tox run
 ```
 
 To learn more about the individual environments:
 
 ```sh
-tox -av
+tox list
 ```
 
 ### Developing on the RSP
