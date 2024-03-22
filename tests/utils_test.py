@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from _pytest.monkeypatch import MonkeyPatch
+import pytest
 
 from lsst.rsp import format_bytes
 from lsst.rsp.utils import get_service_url
@@ -18,7 +18,7 @@ def test_format_bytes() -> None:
     assert format_bytes(1234567890000000) == "1.23 PB"
 
 
-def test_get_service_url(monkeypatch: MonkeyPatch) -> None:
+def test_get_service_url(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure there are no doubled slashes."""
     monkeypatch.setenv("EXTERNAL_INSTANCE_URL", "https://test.example.com/")
     monkeypatch.setenv("TAP_ROUTE", "/api/tap")
