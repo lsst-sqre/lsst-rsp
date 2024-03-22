@@ -9,9 +9,9 @@ import traceback
 from IPython.display import HTML, display
 
 try:
-    import lsst.log as lsstLog
+    import lsst.log as lsst_log
 except ImportError:
-    lsstLog = None
+    lsst_log = None
 
 # Each log level will have the level name use a different color to
 # ensure that warning log messages can be seen more easily.
@@ -43,19 +43,31 @@ line-height: var(--jp-code-line-height);
 
 class IPythonHandler(logging.Handler):
     """Special log handler for IPython Notebooks.
+
     This log handler emits log messages as formatted HTML output with
     the following content:
+
     * The name of the logger.
     * The level of the log message, color coded based on severity.
     * The message itself.
+
     It can be enabled (forcing other log handlers to be removed) with:
+
     .. code-block:: python
+
        logging.basicConfig(
            level=logging.INFO, force=True, handlers=[IPythonHandler()]
        )
     """
 
     def emit(self, record: logging.LogRecord) -> None:
+        """Emit a single log message.
+
+        Parameters
+        ----------
+        record
+            Log record to emit.
+        """
         try:
             name_color = "var(--jp-warn-color2)"
             level_color = _level_colors.get(
@@ -69,8 +81,8 @@ class IPythonHandler(logging.Handler):
                 f'<span style="color: {level_color}">{record.levelname}</span>'
             )
             text = (
-                f'<pre style="{_pre_style}">{name_msg} {level_msg}: '
-                + f"{message}</pre>"
+                f'<pre style="{_pre_style}">{name_msg} {level_msg}:'
+                f" {message}</pre>"
             )
             # Sometimes exception information is included so must be extracted.
             if record.exc_info:
@@ -92,9 +104,9 @@ def forward_lsst_log(level: str) -> None:
 
     Parameters
     ----------
-    level : `str`
+    level
         The level name to forward.
     """
-    if lsstLog is not None:
-        lsstLog.configure_pylog_MDC(level, MDC_class=None)
-        lsstLog.usePythonLogging()
+    if lsst_log is not None:
+        lsst_log.configure_pylog_MDC(level, MDC_class=None)
+        lsst_log.usePythonLogging()
