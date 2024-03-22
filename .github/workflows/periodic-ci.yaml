@@ -17,6 +17,7 @@ jobs:
       matrix:
         python:
           - "3.11"
+          - "3.12"
 
     steps:
       - uses: actions/checkout@v4
@@ -26,20 +27,6 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           tox-envs: "lint,typing,py"
-          use-cache: false
-
-  docs:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build docs in tox
-        uses: lsst-sqre/run-tox@v1
-        with:
-          python-version: "3.11"
-          tox-envs: "docs,docs-linkcheck"
           use-cache: false
 
   test-packaging:
@@ -54,5 +41,5 @@ jobs:
       - name: Build and publish
         uses: lsst-sqre/build-and-publish-to-pypi@v2
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           upload: false

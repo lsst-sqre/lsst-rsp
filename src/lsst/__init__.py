@@ -1,4 +1,4 @@
-"""pkgutil-style namespace package"""
+"""pkgutil-style namespace package."""
 
 import pkgutil
 

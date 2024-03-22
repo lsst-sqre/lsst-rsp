@@ -1,8 +1,9 @@
 """Utility functions for LSST JupyterLab notebook environment."""
 
 import os
+from contextlib import suppress
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 from urllib.parse import urljoin
 
 import pyvo
@@ -11,8 +12,12 @@ from deprecated import deprecated
 
 
 def format_bytes(n: int) -> str:
-    """Format bytes as text
+    """Format bytes as text.
 
+    Taken from ``dask.distributed``, where it is not exported.
+
+    Examples
+    --------
     >>> format_bytes(1)
     '1 B'
     >>> format_bytes(1234)
@@ -25,8 +30,6 @@ def format_bytes(n: int) -> str:
     '1.23 TB'
     >>> format_bytes(1234567890000000)
     '1.23 PB'
-
-    (taken from dask.distributed, where it is not exported)
     """
     if n > 1e15:
         return "%0.2f PB" % (n / 1e15)
@@ -42,11 +45,11 @@ def format_bytes(n: int) -> str:
 
 
 def get_hostname() -> str:
-    """Utility function to return hostname or, failing that, "localhost"."""
+    """Return hostname or, failing that, ``localhost``."""
     return os.environ.get("HOSTNAME") or "localhost"
 
 
-def get_service_url(name: str, env_name: Optional[str] = None) -> str:
+def get_service_url(name: str, env_name: str | None = None) -> str:
     """Get our best guess at the URL for the requested service."""
     if not env_name:
         env_name = name.upper()
@@ -60,8 +63,8 @@ def get_service_url(name: str, env_name: Optional[str] = None) -> str:
     return urljoin(base, path)
 
 
-def get_pyvo_auth() -> Optional[pyvo.auth.authsession.AuthSession]:
-    """Utility function to create a pyvo compatible auth object."""
+def get_pyvo_auth() -> pyvo.auth.authsession.AuthSession | None:
+    """Create a PyVO-compatible auth object."""
     tap_url = get_service_url("tap")
     obstap_url = get_service_url("obstap")
     ssotap_url = get_service_url("ssotap")
@@ -96,10 +99,12 @@ def get_pyvo_auth() -> Optional[pyvo.auth.authsession.AuthSession]:
     reason="get_pod() always returns None in RSPs running Nubladov3 or later"
 )
 def get_pod() -> None:
-    """No longer useful.  Formerly used to return the Kubernetes object for
-    the pod in which this code was running.
+    """Get the name of the running pod (deprecated, not functional).
+
+    No longer useful.  Formerly used to return the Kubernetes object for the
+    pod in which this code was running.
     """
-    return None
+    return
 
 
 def get_node() -> str:
@@ -127,33 +132,25 @@ def get_digest() -> str:
 
 
 def get_access_token(
-    tokenfile: Optional[Union[str, Path]] = None, log: Optional[Any] = None
+    tokenfile: str | Path | None = None, log: Any | None = None
 ) -> str:
-    """Determine the access token from the mounted location (nublado
-    3/2) or environment (any).  Prefer the mounted version since it
-    can be updated, while the environment variable stays at whatever
-    it was when the process was started.  Return the empty string if
-    the token cannot be determined.
+    """Get the Gafaelfawr access token for the user.
+
+    Determine the access token from the mounted location (nublado 3/2) or
+    environment (any).  Prefer the mounted version since it can be updated,
+    while the environment variable stays at whatever it was when the process
+    was started.  Return the empty string if the token cannot be determined.
     """
-    tok = ""
     if tokenfile:
-        # If a path was specified, trust it.
-        tok = Path(tokenfile).read_text()
-    else:
-        jldir = "/opt/lsst/software/jupyterlab"
-        # Try the default token paths: nublado3, then nublado2, then fall
-        # back to the environment.
-        tokenfiles = [
-            f"{jldir}/secrets/token",
-            f"{jldir}/environment/ACCESS_TOKEN",
-        ]
-        for tf in tokenfiles:
-            token_path = Path(tf)
-            try:
-                tok = token_path.read_text()
-                break
-            except FileNotFoundError:
-                pass
-        if not tok:
-            tok = os.environ.get("ACCESS_TOKEN", "")
-    return tok
+        return Path(tokenfile).read_text()
+    base_dir = Path("/opt/lsst/software/jupyterlab")
+    for candidate in (
+        base_dir / "secrets" / "token",
+        base_dir / "environment" / "ACCESS_TOKEN",
+    ):
+        with suppress(FileNotFoundError):
+            return candidate.read_text()
+
+    # If we got here, we couldn't find a file. Return the environment variable
+    # if set, otherwise the empty string.
+    return os.environ.get("ACCESS_TOKEN", "")

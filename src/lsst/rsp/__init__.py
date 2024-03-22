@@ -1,6 +1,4 @@
-"""Collection of utilities, formerly in rsp_jupyter_utils.lab and
-rsp_jupyter_utils.helper
-"""
+"""Collection of utilities for Rubin Science Platform notebooks."""
 
 from importlib.metadata import PackageNotFoundError, version
 
