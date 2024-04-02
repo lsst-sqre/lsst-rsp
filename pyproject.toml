@@ -156,6 +156,7 @@ ignore = [
     "S106",    # good idea but too many false positives on non-passwords
     "S107",    # good idea but too many false positives on non-passwords
     "S603",    # not going to manually mark every subprocess call as reviewed
+    "S606",    # yes, I mean to start a subprocess without a shell
     "S607",    # using PATH is not a security vulnerability
     "SIM102",  # sometimes the formatting of nested if statements is clearer
     "SIM117",  # sometimes nested with contexts are clearer

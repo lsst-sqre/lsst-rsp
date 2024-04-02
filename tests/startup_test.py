@@ -6,12 +6,15 @@ from lsst.rsp.startup.services.labrunner import LabRunner
 from lsst.rsp.startup.util import str_bool
 
 
-def test_object() -> None:
+def test_object(startup_mock: None) -> None:
     lr = LabRunner()
     assert lr.debug is False
 
 
-def test_debug_object(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_debug_object(
+    startup_mock: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("RUBIN_EUPS_PATH", "/opt/lsst/software/stack/foo")
     monkeypatch.setenv("DEBUG", "1")
     lr = LabRunner()
     assert lr.debug is True
