@@ -22,26 +22,13 @@ classifiers = [
     "Typing :: Typed",
 ]
 requires-python = ">=3.11"
-dependencies = [
-    "Deprecated<2",
-    "IPython<9",
-    "pyvo>=1.5.0,<2"
-]
+# Use requirements/main.in for runtime dependencies instead
+dependencies = []
 dynamic = ["version"]
 
-[project.optional-dependencies]
-dev = [
-    # Typing
-    "types-deprecated",
-    "types-requests",
-    # Testing
-    "coverage[toml]",
-    "pytest",
-    "pytest-asyncio",
-    "mypy",
-    # Documentation
-    "scriv",
-]
+[[project.authors]]
+name = "Association of Universities for Research in Astronomy, Inc. (AURA)"
+email = "sqre-admin@lists.lsst.org"
 
 [project.urls]
 Homepage = "https://rsp.lsst.io/"
@@ -155,6 +142,8 @@ ignore = [
     "D205",    # our documentation style allows a folded first line
     "EM101",   # justification (duplicate string in traceback) is silly
     "EM102",   # justification (duplicate string in traceback) is silly
+    "FBT001",  # positional booleans are normal for Pydantic field defaults
+    "FBT002",  # positional booleans are normal for Pydantic field defaults
     "FBT003",  # positional booleans are normal for Pydantic field defaults
     "FIX002",  # point of a TODO comment is that we're not ready to fix it
     "G004",    # forbidding logging f-strings is appealing, but not our style
@@ -219,9 +208,11 @@ split-on-trailing-comma = false
 builtins-ignorelist = [
     "all",
     "any",
+    "dict",
     "help",
     "id",
     "list",
+    "open",
     "type",
 ]
 
