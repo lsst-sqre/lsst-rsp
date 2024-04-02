@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from lsst.rsp import format_bytes
-from lsst.rsp.utils import get_service_url
+from lsst.rsp.utils import get_digest, get_service_url
 
 
 def test_format_bytes() -> None:
@@ -16,6 +16,18 @@ def test_format_bytes() -> None:
     assert format_bytes(1234567890) == "1.23 GB"
     assert format_bytes(1234567890000) == "1.23 TB"
     assert format_bytes(1234567890000000) == "1.23 PB"
+
+
+def test_get_digest(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("JUPYTER_IMAGE_SPEC", "sciplat-lab@sha256:abcde")
+    digest = get_digest()
+    assert digest == "abcde"
+
+
+def test_get_digest_fail(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("JUPYTER_IMAGE_SPEC", "sciplat-lab:w_2024_01")
+    digest = get_digest()
+    assert digest == ""
 
 
 def test_get_service_url(monkeypatch: pytest.MonkeyPatch) -> None:

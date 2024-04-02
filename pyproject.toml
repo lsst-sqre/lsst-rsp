@@ -22,26 +22,13 @@ classifiers = [
     "Typing :: Typed",
 ]
 requires-python = ">=3.11"
-dependencies = [
-    "Deprecated<2",
-    "IPython<9",
-    "pyvo>=1.5.0,<2"
-]
+# Use requirements/main.in for runtime dependencies instead
+dependencies = []
 dynamic = ["version"]
 
-[project.optional-dependencies]
-dev = [
-    # Typing
-    "types-deprecated",
-    "types-requests",
-    # Testing
-    "coverage[toml]",
-    "pytest",
-    "pytest-asyncio",
-    "mypy",
-    # Documentation
-    "scriv",
-]
+[[project.authors]]
+name = "Association of Universities for Research in Astronomy, Inc. (AURA)"
+email = "sqre-admin@lists.lsst.org"
 
 [project.urls]
 Homepage = "https://rsp.lsst.io/"
@@ -155,6 +142,8 @@ ignore = [
     "D205",    # our documentation style allows a folded first line
     "EM101",   # justification (duplicate string in traceback) is silly
     "EM102",   # justification (duplicate string in traceback) is silly
+    "FBT001",  # positional booleans are normal for Pydantic field defaults
+    "FBT002",  # positional booleans are normal for Pydantic field defaults
     "FBT003",  # positional booleans are normal for Pydantic field defaults
     "FIX002",  # point of a TODO comment is that we're not ready to fix it
     "G004",    # forbidding logging f-strings is appealing, but not our style
@@ -167,6 +156,7 @@ ignore = [
     "S106",    # good idea but too many false positives on non-passwords
     "S107",    # good idea but too many false positives on non-passwords
     "S603",    # not going to manually mark every subprocess call as reviewed
+    "S606",    # yes, I mean to start a subprocess without a shell
     "S607",    # using PATH is not a security vulnerability
     "SIM102",  # sometimes the formatting of nested if statements is clearer
     "SIM117",  # sometimes nested with contexts are clearer
@@ -203,6 +193,7 @@ select = ["ALL"]
     "D101",    # tests don't need docstrings
     "D103",    # tests don't need docstrings
     "PLR0915", # tests are allowed to be long, sometimes that's convenient
+    "PT004",   # Not returning anything is totally reasonable for fixtures
     "PT012",   # way too aggressive about limiting pytest.raises blocks
     "S101",    # tests should use assert
     "S106",    # tests are allowed to hard-code dummy passwords
@@ -219,9 +210,11 @@ split-on-trailing-comma = false
 builtins-ignorelist = [
     "all",
     "any",
+    "dict",
     "help",
     "id",
     "list",
+    "open",
     "type",
 ]
 
