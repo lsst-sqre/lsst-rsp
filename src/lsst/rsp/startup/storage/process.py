@@ -41,7 +41,7 @@ def run(
     if logger is None:
         configure_logging()
         logger = structlog.get_logger(app_name)
-    argstr = join(*args)
+    argstr = join(args)
     logger.info(f"Running command '{argstr}'")
     try:
         proc = ProcessResult.from_proc(
