@@ -1,17 +1,28 @@
 """Control RSP startup."""
 
+import configparser
+import contextlib
 import datetime
+import hashlib
+import json
 import os
 import sys
 import tempfile
 from pathlib import Path
 from shlex import join
+from typing import Any
 from urllib.parse import urlparse
 
 import structlog
 
-from ... import get_digest
-from ..constants import app_name, profile_path, top_dir
+from ... import get_access_token, get_digest
+from ..constants import (
+    app_name,
+    logging_checksums,
+    max_number_outputs,
+    profile_path,
+    top_dir,
+)
 from ..storage.logging import configure_logging
 from ..storage.process import run
 from ..util import str_bool
@@ -36,8 +47,8 @@ class LabRunner:
         self._debug = str_bool(self._env.get("DEBUG", ""))
         configure_logging(self._debug)
         self._logger = structlog.get_logger(app_name)
-        self._user = self._get_user()
         self._home = Path(self._env["HOME"])  # If unset, it's OK to die.
+        self._user = ""
 
     def go(self) -> None:
         """Start the user lab."""
@@ -67,16 +78,8 @@ class LabRunner:
         # Set up the (complicated) environment for the JupyterLab process
         self._configure_env()
 
-    def _get_user(self) -> str:
-        self._logger.debug("Determining user name")
-        user = self._env.get("USER", "")
-        if not user:
-            proc = run("id", "-u", "-n")
-            if proc is None:
-                raise ValueError("Could not determine user")
-            user = proc.stdout.strip()
-        self._logger.debug(f"User name -> '{user}'")
-        return user
+        # Modify files
+        self._modify_files()
 
     def _reset_user_env(self) -> None:
         if not str_bool(os.environ.get("RESET_USER_ENV", "")):
@@ -185,12 +188,18 @@ class LabRunner:
         os.execl(tf.name, tfp.name)
 
     #
-    # This leads off a big block of setting up our subprocess environment
+    # After all of that, if we get down here, we are running with our
+    # necessary stack environment set up and the homedir environment
+    # relocated if we asked for that.
+    #
+
+    #
+    # Next up, a big block of setting up our subprocess environment.
     #
     def _configure_env(self) -> None:
         self._logger.debug("Configuring environment for JupyterLab process")
-        # Start with a copy of our own environment
-        self._env.update(os.environ)
+        # Set USER if not present
+        self._set_user()
         # Remove the SUDO env vars that give Conda fits.
         self._remove_sudo_env()
         # Set a whole bunch of threading guideline variables
@@ -216,6 +225,16 @@ class LabRunner:
         #
         self._logger.debug("Lab process environment", env=self._env)
 
+    def _set_user(self) -> None:
+        self._logger.debug("Determining user name")
+        user = self._env.get("USER", "")
+        if not user:
+            proc = run("id", "-u", "-n")
+            if proc is None:
+                raise ValueError("Could not determine user")
+            user = proc.stdout.strip()
+            self._env["USER"] = user
+
     def _remove_sudo_env(self) -> None:
         self._logger.debug("Removing SUDO_ environment variables")
         sudo_vars = ("SUDO_USER", "SUDO_UID", "SUDO_GID", "SUDO_COMMAND")
@@ -231,7 +250,7 @@ class LabRunner:
         if lim:
             # It should be a string representing a number, and we're
             # going to coerce it to an integer.  If that fails, we
-            # force it to 1
+            # force it to 1.
             try:
                 lim_n = int(float(lim))
             except ValueError:
@@ -280,7 +299,7 @@ class LabRunner:
                 if pcr.find("/") > 0:
                     # Does it have a directory in it?
                     t_user, rest = pcr.split("/")
-                if t_user in ("~", f"~{self._user}"):
+                if t_user in ("~", f"~{self._env['USER']}"):
                     if rest:
                         newpcr = str(self._home / rest)
                     else:
@@ -369,3 +388,165 @@ class LabRunner:
             self._env["ORIG_PGPASSFILE"] = self._env["PGPASSFILE"]
             self._env["PGPASSFILE"] = newpg
             self._logger.debug(f"Set 'PGPASSFILE' -> '{newpg}'")
+
+    #
+    # The second big block is a bunch of file manipulation.
+    #
+    def _modify_files(self) -> None:
+        # Copy the Butler credentials into the user's space
+        self._copy_butler_credentials()
+        # Copy the logging profile
+        self._copy_logging_profile()
+
+    def _copy_butler_credentials(self) -> None:
+        if (
+            "AWS_SHARED_CREDENTIALS_FILE" in self._env
+            or "PGPASSFILE" in self._env
+        ):
+            if "AWS_SHARED_CREDENTIALS_FILE" in self._env:
+                self._merge_aws_creds()
+            if "PGPASSFILE" in self._env:
+                self._merge_pgpass()
+
+    def _merge_aws_creds(self) -> None:
+        #
+        # Merge the config in the original credentials file and the one
+        # in our homedir.  For any given section, we assume that the
+        # information in the container ("original credentials files")
+        # is correct, but leave any other user config alone.
+        #
+        hc_path = Path(self._env["AWS_SHARED_CREDENTIALS_FILE"])
+        hc_path.touch(mode=0o600, exist_ok=True)
+        home_config = configparser.ConfigParser()
+        home_config.read(str(hc_path))
+        ro_config = configparser.ConfigParser()
+        ro_config.read(self._env["ORIG_AWS_SHARED_CREDENTIALS_FILE"])
+        for sect in ro_config.sections():
+            home_config[sect] = ro_config[sect]
+        with hc_path.open("w") as f:
+            home_config.write(f)
+
+    def _merge_pgpass(self) -> None:
+        #
+        # Same as above, but for pgpass files.
+        #
+        config = {}
+        # Get current config from homedir
+        home_pgpass = Path(self._env["PGPASSFILE"])
+        home_pgpass.touch(mode=0o600, exist_ok=True)
+        lines = home_pgpass.read_text().splitlines()
+        for line in lines:
+            if ":" not in line:
+                continue
+            pg, pw = line.rsplit(":", maxsplit=1)
+            config[pg] = pw.rstrip()
+        # Update config from container-supplied one
+        ro_pgpass = Path(self._env["ORIG_PGPASSFILE"])
+        lines = ro_pgpass.read_text().splitlines()
+        for line in lines:
+            if ":" not in line:
+                continue
+            pg, pw = line.rsplit(":", maxsplit=1)
+            config[pg] = pw.rstrip()
+        with home_pgpass.open("w") as f:
+            for pg in config:
+                f.write(f"{pg}:{config[pg]}\n")
+
+    def _copy_logging_profile(self) -> None:
+        self._logger.debug("Copying logging profile if needed")
+        user_profile = (
+            self._home
+            / ".ipython"
+            / "profile_default"
+            / "startup"
+            / "20-logging.py"
+        )
+        copy = False
+        user_loghash = ""
+        if user_profile.is_file():
+            user_loghash = hashlib.sha256(
+                user_profile.read_bytes()
+            ).hexdigest()
+        ctr_profile = top_dir / "jupyterlab" / "20-logging.py"
+        ctr_contents = ctr_profile.read_bytes()
+        ctr_loghash = hashlib.sha256(ctr_contents).hexdigest()
+        if user_loghash == ctr_loghash:
+            self._logger.debug("User log profile is up-to-date; not copying")
+        elif not user_loghash:
+            self._logger.debug("No user log profile; copying")
+            copy = True
+        elif user_loghash in logging_checksums:
+            self._logger.debug(
+                f"User log profile '{user_loghash}' is" " out-of-date; copying"
+            )
+            copy = True
+        else:
+            self._logger.debug(
+                f"User log profile '{user_loghash}' is"
+                " locally modified; not copying"
+            )
+        if copy:
+            user_profile.write_bytes(ctr_contents)
+
+    def _modify_settings(self) -> None:
+        self._logger.debug("Modifying user settings if needed")
+        self._increase_log_limit()
+
+    def _increase_log_limit(self) -> None:
+        self._logger.debug("Increasing log limit if needed")
+        settings: dict[str, Any] = {}
+        settings_dir = (
+            self._home
+            / ".jupyter"
+            / "lab"
+            / "user-settings"
+            / "@jupyterlab"
+            / "notebook-extension"
+        )
+        settings_dir.mkdir(parents=True, exist_ok=True)
+        settings_file = settings_dir / "tracker.jupyterlab.settings"
+        if settings_file.is_file():
+            with settings_file.open() as f:
+                settings = json.load(f)
+        else:
+            settings_file.touch()
+        current_limit = settings.get("maxNumberOutputs", 0)
+        if current_limit < max_number_outputs:
+            self._logger.warning(
+                f"Changing maxNumberOutputs in {settings_file!s}"
+                f" from {current_limit} to {max_number_outputs}"
+            )
+            settings["maxNumberOutputs"] = max_number_outputs
+            with settings_file.open("w") as f:
+                json.dump(settings, f, sort_keys=True, indent=4)
+        else:
+            self._logger.debug("Log limit increase not needed")
+
+    def _copy_dircolors(self) -> None:
+        self._logger.debug("Copying dircolors if needed")
+        if not (self._home / ".dir_colors").exists():
+            self._logger.debug("Copying dircolors")
+            dc = Path("/etc/dircolors.ansi-universal")
+            dc_txt = dc.read_text()
+            (self._home / ".dir_colors").write_text(dc_txt)
+        else:
+            self._logger.debug("Copying dircolors not needed")
+
+    def _manage_access_token(self) -> None:
+        self._logger.debug("Updating access token")
+        tokfile = self._home / ".access_token"
+        tokfile.unlink(missing_ok=True)
+        ctr_token = top_dir / "software" / "jupyterlab" / "secrets" / "token"
+        if ctr_token.exists():
+            self._logger.debug(f"Symlinking {tokfile!s}->{ctr_token!s}")
+            tokfile.symlink_to(ctr_token)
+            with contextlib.suppress(NotImplementedError):
+                tokfile.chmod(0o600, follow_symlinks=False)
+            return
+        token = get_access_token()
+        if token:
+            tokfile.touch(mode=0o600)
+            tokfile.write_text(token)
+            self._logger.debug(f"Created {tokfile}")
+        else:
+            self._logger.debug("Could not determine access token")
