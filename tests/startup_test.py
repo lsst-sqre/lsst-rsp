@@ -8,16 +8,15 @@ from lsst.rsp.startup.util import str_bool
 
 def test_object(startup_mock: None) -> None:
     lr = LabRunner()
-    assert lr.debug is False
+    assert lr._debug is False
 
 
 def test_debug_object(
     startup_mock: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("RUBIN_EUPS_PATH", "/opt/lsst/software/stack/foo")
     monkeypatch.setenv("DEBUG", "1")
     lr = LabRunner()
-    assert lr.debug is True
+    assert lr._debug is True
 
 
 def test_str_bool() -> None:
