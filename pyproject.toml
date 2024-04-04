@@ -30,6 +30,9 @@ dynamic = ["version"]
 name = "Association of Universities for Research in Astronomy, Inc. (AURA)"
 email = "sqre-admin@lists.lsst.org"
 
+[project.scripts]
+runlab = "lsst.rsp.startup.cli:main"
+
 [project.urls]
 Homepage = "https://rsp.lsst.io/"
 Source = "https://github.com/lsst-sqre/lsst-rsp"
@@ -92,6 +95,7 @@ exclude_lines = [
 [tool.mypy]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
+exclude = "tests/support/files"
 ignore_missing_imports = true
 local_partial_types = true
 no_implicit_reexport = true
@@ -123,6 +127,9 @@ python_files = ["tests/*.py", "tests/*/*.py"]
 [tool.ruff]
 line-length = 79
 target-version = "py311"
+exclude = [
+    "tests/support/files/*"
+]
 
 [tool.ruff.lint]
 ignore = [

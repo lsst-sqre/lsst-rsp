@@ -7,22 +7,21 @@ import hashlib
 import json
 import os
 import sys
-import tempfile
 from pathlib import Path
-from shlex import join
 from time import sleep
 from typing import Any
 from urllib.parse import urlparse
 
 import structlog
+import symbolicmode
 
 from ... import get_access_token, get_digest
 from ..constants import (
     app_name,
+    etc,
     logging_checksums,
     max_number_outputs,
     noninteractive_config,
-    profile_path,
     top_dir,
 )
 from ..models.noninteractive import NonInteractiveExecution
@@ -60,38 +59,13 @@ class LabRunner:
         # There's an argument for leaving it there forever, in case the
         # user has messed up their Python environment so bad that they
         # can't even start a Python interpreter.
-        #
-        # self._reset_user_env()  # noqa: ERA001
-        #
-        # Check to see whether LOADRSPSTACK is set and force it if it is
-        # not.  We need this to source the correct file in the next step.
-        #
-        # As above, in order to bootstrap ourselves to a running state, we
-        # need a shell shim, so we need to figure this out in the shim too.
-        #
-        # self._ensure_loadrspstack()  # noqa: ERA001
-        #
-        # Check to see whether we are running within the stack, and do a
-        # complicated re-exec dance if we are not.  Modular so we can rip
-        # this out when we are no longer using the stack Python.
-        #
-        # Since the stack container only provides Python3 within the DM
-        # stack...we have to do this in the shell launcher too.
-        #
-        # Eventually all of this should move into this module...although
-        # by the time we have an external Python 3, we will no longer need
-        # this part.
-        #
-        # self._ensure_environment()  # noqa: ERA001
-
-        # Set up the (complicated) environment for the JupyterLab process
         self._configure_env()
 
         # Modify files.  If $HOME is not mounted and writeable, things will
         # go wrong here.
         self._modify_files()
 
-        # Set up git parameters and git-lfs
+        # Check out notebooks, set up git parameters and git-lfs
         self._setup_git()
 
         # Clear EUPS cache
@@ -100,133 +74,6 @@ class LabRunner:
         # Decide between interactive and noninteractive start, do
         # things that change between those two, and launch the Lab
         self._launch()
-
-    def _reset_user_env(self) -> None:
-        # This is how the reset eventually should be done.  However,
-        # since we still have to start from a shell script...we will
-        # reset the environment in the shell script too.
-        if not str_bool(os.environ.get("RESET_USER_ENV", "")):
-            self._logger.debug("User environment reset not requested")
-            return
-        self._logger.debug("User environment reset requested")
-        now = datetime.datetime.now(datetime.UTC).isoformat()
-        reloc = self._home / f".user_env.{now}"
-        reloc.mkdir()  # Fail it it already exists--that would be weird
-        moved = False
-        # Top-level (relative to $HOME) dirs
-        for item in ("cache", "conda", "local", "jupyter"):
-            dir_base = Path(f".{item}")
-            dir_full = self._home / dir_base
-            if dir_full.is_dir():
-                dir_full.rename(reloc / dir_base)
-                moved = True
-        # Files, not necessarily at top level
-        u_setups = self._home / "notebooks" / ".user_setups"
-        if u_setups.is_file():
-            (reloc / "notebooks").mkdir()
-            u_setups.rename(reloc / "notebooks" / "user_setups")
-            moved = True
-        if moved:
-            self._logger.debug(f"Relocated files to {reloc!s}")
-            self._logger.debug("Restarting with cleaned-up filespace")
-            # We're about to re-exec: we don't want to keep looping.
-            del self._env["RESET_USER_ENV"]
-            self._ensure_loadrspstack()
-            # We cheat a bit here.  Sourcing the stack setup twice is
-            # (I believe) harmless, and this is a fast way to re-exec
-            # thus ensuring a cleaner Python environment
-            if "LSST_CONDA_ENV_NAME" in self._env:
-                del self._env["LSST_CONDA_ENV_NAME"]
-            # This will re-exec so we get a new Python process
-            self._ensure_environment()
-        else:
-            self._logger.debug("No user files needed relocation")
-            # Nothing was actually moved, so throw away the directory.
-            reloc.rmdir()
-
-    def _ensure_loadrspstack(self) -> None:
-        # This is not currently useful.  At the moment we need to use the
-        # python3 inside the stack.  We would like to break the Python we use
-        # to run JupyterLab itself apart from the stack environment.
-        #
-        # However, although the approach in this method would work *if*
-        # there were already an os-supplied python3 in the source container,
-        # (which is to say the DM stack container that the RSP is built from)
-        # there isn't.  The only Python 3 in there is the one inside the
-        # stack.
-        #
-        # So, in short, we're going to have to launch the lab runner from a
-        # shell script that sources the stack anyway.
-        self._logger.debug("Ensuring that LOADRSPSTACK is set")
-        if "LOADRSPSTACK" in self._env:
-            self._logger.debug(
-                f"LOADRSPSTACK was set to '{self._env['LOADRSPSTACK']}'"
-            )
-            return
-        rspstack = top_dir / "rspstack" / "loadrspstack.bash"
-        if not rspstack.is_file():
-            rspstack = top_dir / "stack" / "loadLSST.bash"
-        self._env["LOADRSPSTACK"] = str(rspstack)
-        self._logger.debug(f"Newly set LOADRSPSTACK to {rspstack!s}")
-
-    def _ensure_environment(self) -> None:
-        """If we are not running from within the stack environment,
-        restart from within it.
-        """
-        # Currently the JupyterLab machinery relies on the stack
-        # Python to run.  While this is expected to change, it has not
-        # yet, so...  we test for an environment variable that, unless
-        # the user is extraordinarily perverse, will only be set in
-        # the stack environment.
-        #
-        # It's ``LSST_CONDA_ENV_NAME``.
-        #
-        # If we don't find it, we create an executable shell file that
-        # sets up the stack environment and then reruns the current
-        # command with its arguments.  We know we have ``/bin/bash``
-        # in the container, so we use that as the shell and use
-        # ``loadLSST.bash`` to set up the environment.  We also add
-        # some paths set up in the profile.  Then we use exec() in the
-        # shell script to reinvoke the Python process exactly as it
-        # was initially called.
-        #
-        # Finally we os.execl() that file, replacing this process with
-        # that one, which will bring us right back here, but with the
-        # stack initialized.  We do leave the file sitting around, but
-        # since we're creating it as a temporary file, that's OK: it's
-        # a few dozen bytes, and it will go away when the container
-        # does.
-
-        if os.environ.get("LSST_CONDA_ENV_NAME"):
-            self._logger.debug(
-                "LSST_CONDA_ENV_NAME is set: stack Python assumed"
-            )
-            # All is well.
-            return
-        self._logger.debug(
-            "LSST_CONDA_ENV_NAME not set; must re-exec with stack Python"
-        )
-        tf = tempfile.NamedTemporaryFile(mode="w", delete=False)
-        tfp = Path(tf.name)
-        tfp.write_text(
-            "#!/bin/bash\n"
-            f". {self._env['LOADRSPSTACK']}\n"
-            f". {profile_path!s}\n"
-            f"exec {join(sys.argv)}\n"
-        )
-        # Make it executable
-        tfp.chmod(0o700)
-        # Ensure it's flushed to disk
-        os.sync()
-        # Run it
-        self._logger.debug(f"About to re-exec: running {tfp!s}")
-        os.execl(tf.name, tfp.name)
-
-    #
-    # After all of that, if we get down here, we are running with our
-    # necessary stack environment set up and the homedir environment
-    # relocated if we asked for that.
-    #
 
     #
     # Next up, a big block of setting up our subprocess environment.
@@ -436,8 +283,6 @@ class LabRunner:
         self._copy_dircolors()
         # Copy contents of /etc/skel
         self._copy_etc_skel()
-        # Refresh standard notebooks
-        self._refresh_notebooks()
 
     def _copy_butler_credentials(self) -> None:
         if (
@@ -533,7 +378,7 @@ class LabRunner:
         self._logger.debug("Copying dircolors if needed")
         if not (self._home / ".dir_colors").exists():
             self._logger.debug("Copying dircolors")
-            dc = Path("/etc/dircolors.ansi-universal")
+            dc = etc / "dircolors.ansi-universal"
             dc_txt = dc.read_text()
             (self._home / ".dir_colors").write_text(dc_txt)
         else:
@@ -541,8 +386,7 @@ class LabRunner:
 
     def _copy_etc_skel(self) -> None:
         self._logger.debug("Copying files from /etc/skel if they don't exist")
-        es_str = "/etc/skel"
-        es = Path(es_str)
+        es = etc / "skel"
         # alas, Path.walk() requires Python 3.12, which isn't in the
         # stack containers yet.
         contents = os.walk(es)
@@ -554,10 +398,10 @@ class LabRunner:
             dirs = [Path(x) for x in entry[1]]
             files = [Path(x) for x in entry[2]]
             # Determine what the destination directory should be
-            if entry[0] == es_str:
+            if entry[0] == str(es):
                 current_dir = self._home
             else:
-                current_dir = self._home / entry[0][(len(es_str) + 1) :]
+                current_dir = self._home / entry[0][(len(str(es)) + 1) :]
             # For each directory in the tree at this level:
             # if we don't already have one in our directory, make it.
             for d_item in dirs:
@@ -574,11 +418,22 @@ class LabRunner:
                     src_contents = src.read_bytes()
                     (current_dir / f_item).write_bytes(src_contents)
 
+    def _setup_git(self) -> None:
+        # Refresh standard notebooks
+        self._refresh_notebooks()
+        # Set up email and name
+        self._set_git_email_and_name()
+        # Set up Git LFS
+        self._setup_gitlfs()
+
     def _refresh_notebooks(self) -> None:
         # Find the notebook specs.  I think we can ditch our fallbacks now.
         self._logger.debug("Refreshing notebooks")
         urls = self._env.get("AUTO_REPO_SPECS", "")
         url_l = urls.split(",")
+        if not url_l:
+            self._logger.debug("No repos listed in 'AUTO_REPO_SPECS'")
+            return
         # Specs should include the branch too.
         default_branch = self._env.get("AUTO_REPO_BRANCH", "prod")
         now = datetime.datetime.now(datetime.UTC).isoformat()
@@ -589,6 +444,7 @@ class LabRunner:
                 repo, branch = url.split("@", maxsplit=1)
             except ValueError:
                 branch = default_branch
+                repo = url
             repo_path = urlparse(repo).path
             repo_name = Path(repo_path).name
             if repo_name.endswith(".git"):
@@ -603,6 +459,7 @@ class LabRunner:
                 # If not, probably a lot else has already gone wrong.
                 can_write = perms & 0o222
                 if can_write:
+                    self._logger.debug(f"'{dirname!s}' is writeable; moving")
                     newname = Path(f"{dirname!s}.{now}")
                     reloc_msg += f"* '{dirname!s}' -> '{newname!s}'\n"
                     # We're also going to assume the user DOES have write
@@ -613,48 +470,15 @@ class LabRunner:
                     # If the repository exists and is not writeable, and has
                     # the same last commit as the remote, then we don't
                     # need to update it.
-                    cwd = Path.cwd()
-                    #
-                    # Git wants you to be in the working tree
-                    os.chdir(dirname)
-                    rx = run(
-                        "git",
-                        "rev-parse",
-                        "HEAD",
-                        timeout=timeout,
-                        logger=self._logger,
-                    )
-                    local_sha = rx.stdout if rx else ""
-                    rx = run(
-                        "git",
-                        "config",
-                        "--get",
-                        "remote.origin.url",
-                        timeout=timeout,
-                        logger=self._logger,
-                    )
-                    remote = rx.stdout if rx else ""
-                    rx = run(
-                        "git",
-                        "config",
-                        "--get",
-                        "ls-remote",
-                        remote,
-                        timeout=timeout,
-                        logger=self._logger,
-                    )
-                    ls_remote = rx.stdout if rx else ""
-                    lsr_lines = ls_remote.split(ls_remote)
-                    remote_sha = ""
-                    for line in lsr_lines:
-                        if line.endswith(f"refs/heads/{branch}"):
-                            remote_sha = line.split()[0]
-                            break
-                    # Get outta there
-                    os.chdir(cwd)
-                    if local_sha and remote_sha != local_sha:
+                    if self._compare_local_and_remote(
+                        dirname, branch, timeout
+                    ):
+                        self._logger.debug(f"'{dirname!s}' is r/o and current")
                         continue  # Up-to-date; we don't need to do anything
-                    self._recursive_make_writeable_and_remove(dirname)
+                    # It's writeable or stale; re-clone.
+                    self._logger.debug(f"Need to remove '{dirname!s}'")
+                    symbolicmode.chmod(dirname, "u+w")
+                    self._recursive_remove(dirname)
             # If the directory existed, it's gone now.
             self._logger.debug(f"Cloning {repo}@{branch}")
             run(
@@ -669,7 +493,7 @@ class LabRunner:
                 timeout=timeout,
                 logger=self._logger,
             )
-            self._recursive_make_readonly(dirname)
+            symbolicmode.chmod(dirname, "a-w", recurse=True)
         if reloc_msg:
             hdr = (
                 "# Directory relocation\n\n"
@@ -684,41 +508,67 @@ class LabRunner:
 
         self._logger.debug("Refreshed notebooks")
 
-    def _recursive_make_writeable_and_remove(self, tgt: Path) -> None:
+    def _compare_local_and_remote(
+        self, path: Path, branch: str, timeout: int
+    ) -> bool:
+        # Returns True if git repo checked out to path has the same
+        # commit hash as the remote.
+        #
+        # Git wants you to be in the working tree
+        with contextlib.chdir(path):
+            rx = run(
+                "git",
+                "rev-parse",
+                "HEAD",
+                timeout=timeout,
+                logger=self._logger,
+            )
+            local_sha = rx.stdout.strip() if rx else ""
+            rx = run(
+                "git",
+                "config",
+                "--get",
+                "remote.origin.url",
+                timeout=timeout,
+                logger=self._logger,
+            )
+            remote = rx.stdout.strip() if rx else ""
+            rx = run(
+                "git",
+                "ls-remote",
+                remote,
+                timeout=timeout,
+                logger=self._logger,
+            )
+            ls_remote = rx.stdout.strip() if rx else ""
+            lsr_lines = ls_remote.split("\n")
+            remote_sha = ""
+            for line in lsr_lines:
+                line.strip()
+                if line.endswith(f"\trefs/heads/{branch}"):
+                    remote_sha = line.split()[0]
+                    break
+        self._logger.debug(f"local /remote SHA: {local_sha}/{remote_sha}")
+        return local_sha == remote_sha
+
+    def _recursive_remove(self, tgt: Path) -> None:
         # You can't rmdir() a directory with contents, so...
         if not tgt.is_dir():
             self._logger.warning(f"Removal of non-directory {tgt!s} requested")
             return
-        self._logger.debug("Removing directory {str(tgt)}")
+        self._logger.debug(f"Removing directory {tgt!s}")
         contents = tgt.glob("*")
         for item in contents:
             if item.is_dir():
-                self._recursive_make_writeable_and_remove(item)
+                self._recursive_remove(item)
             else:
-                item.chmod(0o200)
                 item.unlink()
-        tgt.chmod(0o200)
+                self._logger.debug(f"Removed item {item!s}")
+        # All contents are gone; remove current directory
         tgt.rmdir()
-        self._logger.debug("Removed directory {str(tgt)}")
+        self._logger.debug(f"Removed directory {tgt!s}")
 
-    def _recursive_make_readonly(self, tgt: Path) -> None:
-        if not tgt.is_dir():
-            self._logger.warning(
-                f"Recursive ro-chmod requested on non-dir {tgt!s}"
-            )
-            return
-        self._logger.debug(f"Recursive ro-chmod requested for {tgt!s}")
-        contents = tgt.glob("*")
-        for item in contents:
-            if item.is_dir():
-                self._recursive_make_readonly(item)
-            perms = item.stat().st_mode
-            nowrite = perms & 0o777555
-            item.chmod(nowrite)
-        tgt.chmod(0o777555)
-        self._logger.debug("Recursive ro-chmod finished for {str(tgt)}")
-
-    def _setup_git(self) -> None:
+    def _set_git_email_and_name(self) -> None:
         self._logger.debug("Setting up git")
         ge = self._env.get("GITHUB_EMAIL", "")
         gn = self._env.get("GITHUB_NAME", "")
@@ -744,27 +594,34 @@ class LabRunner:
                 gn,
                 logger=self._logger,
             )
+
+    def _setup_gitlfs(self) -> None:
         # Check for git-lfs
+        self._logger.debug("Installing Git LFS if needed")
+        if not self._check_for_git_lfs():
+            run("git", "lfs", "install", logger=self._logger)
+            self._logger.debug("Git LFS installed")
+
+    def _check_for_git_lfs(self) -> bool:
         gitconfig = self._home / ".gitconfig"
         if gitconfig.is_file():
             gc = gitconfig.read_text().splitlines()
             for line in gc:
+                line.strip()
                 if line == '[filter "lfs"]':
-                    # Already installed
-                    return
-        self._logger.debug("Installing Git LFS")
-        run("git", "lfs", "install", logger=self._logger)
+                    return True
+        return False
 
     def _launch(self) -> None:
         if str_bool(self._env.get("NONINTERACTIVE", "")):
             self._start_noninteractive()
             # We exec a lab; control never returns here
         self._modify_interactive_settings()
-        self._manage_access_token()
         self._start()
 
     def _modify_interactive_settings(self) -> None:
         self._logger.debug("Modifying interactive settings if needed")
+        self._manage_access_token()
         self._increase_log_limit()
 
     def _increase_log_limit(self) -> None:
@@ -808,6 +665,7 @@ class LabRunner:
             with contextlib.suppress(NotImplementedError):
                 tokfile.chmod(0o600, follow_symlinks=False)
             return
+        self._logger.debug("Did not find container token file")
         token = get_access_token()
         if token:
             tokfile.touch(mode=0o600)

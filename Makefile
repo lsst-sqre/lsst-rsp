@@ -13,7 +13,7 @@ clean:
 .PHONY: init
 init:
 	pip install --upgrade uv
-	uv pip install --upgrade pip tox pre-commit
+	uv pip install --upgrade pip tox tox-uv pre-commit
 	uv pip install --editable .
 	uv pip install -r requirements/main.txt -r requirements/dev.txt
 	rm -rf .tox
@@ -25,7 +25,7 @@ update: update-deps init
 .PHONY: update-deps
 update-deps:
 	pip install --upgrade uv
-	uv pip install pre-commit
+	uv pip install pre-commit tox-uv
 	pre-commit autoupdate
 	uv pip compile --upgrade --generate-hashes                   \
             --output-file requirements/main.txt requirements/main.in

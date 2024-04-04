@@ -1,11 +1,17 @@
 """Tests for startup object."""
 
+import configparser
+import json
 import os
+from collections.abc import Iterable
 from pathlib import Path
 
 import pytest
+import symbolicmode
 
+import lsst.rsp
 from lsst.rsp.startup.services.labrunner import LabRunner
+from lsst.rsp.startup.storage.process import run
 from lsst.rsp.startup.util import str_bool
 
 
@@ -147,11 +153,214 @@ def test_set_butler_credential_vars(
 def test_copy_butler_credentials(
     monkeypatch: pytest.MonkeyPatch, rsp_env: None
 ) -> None:
-    monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", "/etc/secret/aws.creds")
-    monkeypatch.setenv("PGPASSFILE", "/etc/secret/pgpass")
+    td = lsst.rsp.startup.constants.top_dir
+    secret_dir = td / "jupyterlab" / "secrets"
+    monkeypatch.setenv(
+        "AWS_SHARED_CREDENTIALS_FILE", str(secret_dir / "aws-credentials.ini")
+    )
+    monkeypatch.setenv(
+        "PGPASSFILE", str(secret_dir / "postgres-credentials.txt")
+    )
     lr = LabRunner()
+    pg = lr._home / ".lsst" / "postgres-credentials.txt"
+    lines = pg.read_text().splitlines()
+    aws = lr._home / ".lsst" / "aws-credentials.ini"
+    for line in lines:
+        if line.startswith("127.0.0.1:5432:db01:postgres:"):
+            assert line.rsplit(":", maxsplit=1)[1] == "gets_overwritten"
+        if line.startswith("127.0.0.1:5532:db02:postgres:"):
+            assert line.rsplit(":", maxsplit=1)[1] == "should_stay"
+    cp = configparser.ConfigParser()
+    cp.read(str(aws))
+    assert set(cp.sections()) == {"default", "tertiary"}
+    assert cp["default"]["aws_secret_access_key"] == "gets_overwritten"
+    assert cp["tertiary"]["aws_secret_access_key"] == "key03"
     lr._set_butler_credential_variables()
     lr._copy_butler_credentials()
+    lines = pg.read_text().splitlines()
+    aws = lr._home / ".lsst" / "aws-credentials.ini"
+    for line in lines:
+        if line.startswith("127.0.0.1:5432:db01:postgres:"):
+            assert line.rsplit(":", maxsplit=1)[1] == "s33kr1t"
+        if line.startswith("127.0.0.1:5532:db02:postgres:"):
+            assert line.rsplit(":", maxsplit=1)[1] == "should_stay"
+    cp = configparser.ConfigParser()
+    cp.read(str(aws))
+    assert set(cp.sections()) == {"default", "secondary", "tertiary"}
+    assert cp["default"]["aws_secret_access_key"] == "key01"
+    assert cp["secondary"]["aws_secret_access_key"] == "key02"
+    assert cp["tertiary"]["aws_secret_access_key"] == "key03"
+
+
+def test_copy_logging_profile(
+    monkeypatch: pytest.MonkeyPatch, rsp_env: None
+) -> None:
+    lr = LabRunner()
+    pfile = (
+        lr._home / ".ipython" / "profile_default" / "startup" / "20-logging.py"
+    )
+    td = lsst.rsp.startup.constants.top_dir
+    assert not pfile.exists()
+    pfile.parent.mkdir(parents=True)
+    lr._copy_logging_profile()
+    assert pfile.exists()
+    h_contents = pfile.read_text()
+    sfile = td / "jupyterlab" / "20-logging.py"
+    assert sfile.exists()
+    s_contents = sfile.read_text()
+    assert s_contents == h_contents
+    h_contents += "\n# Locally modified\n"
+    pfile.write_text(h_contents)
+    lr._copy_logging_profile()
+    new_contents = pfile.read_text()
+    assert new_contents == h_contents
+    assert new_contents != s_contents
+
+
+def test_copy_dircolors(
+    monkeypatch: pytest.MonkeyPatch, rsp_env: None
+) -> None:
+    lr = LabRunner()
+    assert not (lr._home / ".dir_colors").exists()
+    lr._copy_dircolors()
+    assert (lr._home / ".dir_colors").exists()
+
+
+def test_copy_etc_skel(monkeypatch: pytest.MonkeyPatch, rsp_env: None) -> None:
+    lr = LabRunner()
+    assert not (lr._home / ".gitconfig").exists()
+    assert not (lr._home / ".pythonrc").exists()
+    etc = lsst.rsp.startup.constants.etc
+    prc = (etc / "skel" / ".pythonrc").read_text()
+    prc += "\n# Local mods\n"
+    (lr._home / ".pythonrc").write_text(prc)
+    lr._copy_etc_skel()
+    assert (lr._home / ".gitconfig").exists()
+    sgc = (etc / "skel" / ".gitconfig").read_text()
+    lgc = (lr._home / ".gitconfig").read_text()
+    assert sgc == lgc
+    src = (etc / "skel" / ".pythonrc").read_text()
+    lrc = (lr._home / ".pythonrc").read_text()
+    assert src != lrc
+    assert (lr._home / "notebooks" / ".user_setups").exists()
+
+
+#
+# Git
+#
+
+
+def test_refresh_notebooks(
+    monkeypatch: pytest.MonkeyPatch, rsp_env: None
+) -> None:
+    source_repo = Path(__file__).parent / "support" / "repo"
+    monkeypatch.setenv("AUTO_REPO_SPECS", f"file://{source_repo!s}@main")
+    lr = LabRunner()
+    repo = lr._home / "notebooks" / "repo"
+    assert not repo.exists()
+    lr._refresh_notebooks()
+    paths = (repo, repo / "README.md")
+    assert _is_readonly(paths)
+    lr._refresh_notebooks()
+    assert _is_readonly(paths)
+    for p in paths:
+        symbolicmode.chmod(p, "u+w")
+    assert not _is_readonly(paths)
+    lr._refresh_notebooks()
+    assert _is_readonly(paths)
+
+
+def _is_readonly(paths: Iterable[Path]) -> bool:
+    for p in paths:
+        assert p.exists()
+        mode = p.stat().st_mode
+        mask = 0o222
+        if mode & mask != 0:
+            return False
+    return True
+
+
+def test_set_git_params(
+    monkeypatch: pytest.MonkeyPatch, rsp_env: None
+) -> None:
+    email = "hambone@opera.borphee.quendor"
+    name = "Hambone"
+    monkeypatch.setenv("GITHUB_EMAIL", email)
+    monkeypatch.setenv("GITHUB_NAME", name)
+    gc = run("git", "config", "user.email")
+    assert gc is not None
+    assert gc.stdout.strip() != email
+    gc = run("git", "config", "user.name")
+    assert gc is not None
+    assert gc.stdout.strip() != name
+    lr = LabRunner()
+    lr._set_git_email_and_name()
+    gc = run("git", "config", "user.email")
+    assert gc is not None
+    assert gc.stdout.strip() == email
+    gc = run("git", "config", "user.name")
+    assert gc is not None
+    assert gc.stdout.strip() == name
+
+
+def test_setup_gitlfs(monkeypatch: pytest.MonkeyPatch, rsp_env: None) -> None:
+    lr = LabRunner()
+    assert lr._check_for_git_lfs() is False
+    lr._setup_gitlfs()
+    assert lr._check_for_git_lfs() is True
+
+
+#
+# Interactive-mode-only tests
+#
+
+
+def test_increase_log_limit(
+    monkeypatch: pytest.MonkeyPatch, rsp_env: None
+) -> None:
+    lr = LabRunner()
+    settings = (
+        lr._home
+        / ".jupyter"
+        / "lab"
+        / "user-settings"
+        / "@jupyterlab"
+        / "notebook-extension"
+        / "tracker.jupyterlab.settings"
+    )
+    assert not settings.exists()
+    lr._increase_log_limit()
+    assert settings.exists()
+    with settings.open() as f:
+        obj = json.load(f)
+    assert obj["maxNumberOutputs"] >= 10000
+
+
+def test_manage_access_token(
+    monkeypatch: pytest.MonkeyPatch, rsp_env: None
+) -> None:
+    monkeypatch.setenv("DEBUG", "1")
+    token = "token-of-esteem"
+    monkeypatch.setenv("ACCESS_TOKEN", token)
+    td = lsst.rsp.startup.constants.top_dir
+    ctr_file = td / "jupyterlab" / "secrets" / "token"
+    assert not ctr_file.exists()
+    lr = LabRunner()
+    tfile = lr._home / ".access_token"
+    assert not tfile.exists()
+    lr._manage_access_token()
+    assert tfile.exists()
+    assert tfile.read_text() == token
+    tfile.unlink()
+    ctr_file.write_text(token)
+    assert ctr_file.exists()
+    assert not tfile.exists()
+    lr = LabRunner()
+    lr._manage_access_token()
+    assert tfile.exists()
+    assert tfile.read_text() == token
+    ctr_file.unlink()
+    assert not ctr_file.exists()
 
 
 #
