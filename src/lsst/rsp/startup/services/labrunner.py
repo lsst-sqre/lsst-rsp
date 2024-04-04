@@ -81,9 +81,17 @@ class LabRunner:
         # Modify files
         self._modify_files()
 
+        # Set up git parameters and git-lfs
+        self._setup_git()
+
+        # Clear EUPS cache
+        run("eups", "admin", "clearCache")
+
+        # flush everything to disk again
+        os.sync()
+
         # Decide between interactive and noninteractive start, do
         # things that change between those two, and launch the Lab
-
         self._launch()
 
     def _reset_user_env(self) -> None:
@@ -406,6 +414,8 @@ class LabRunner:
         self._copy_dircolors()
         # Copy contents of /etc/skel
         self._copy_etc_skel()
+        # Refresh standard notebooks
+        self._refresh_notebooks()
 
     def _copy_butler_credentials(self) -> None:
         if (
@@ -541,6 +551,162 @@ class LabRunner:
                     self._logger.debug(f"Creating {current_dir / f_item!s}")
                     src_contents = src.read_bytes()
                     (current_dir / f_item).write_bytes(src_contents)
+
+    def _refresh_notebooks(self) -> None:
+        # Find the notebook specs.  I think we can ditch our fallbacks now.
+        self._logger.debug("Refreshing notebooks")
+        urls = self._env.get("AUTO_REPO_SPECS", "")
+        url_l = urls.split(",")
+        # Specs should include the branch too.
+        default_branch = self._env.get("AUTO_REPO_BRANCH", "prod")
+        now = datetime.datetime.now(datetime.UTC).isoformat()
+        timeout = 30  # Probably don't need to parameterize it.
+        reloc_msg = ""
+        for url in url_l:
+            try:
+                repo, branch = url.split("@", maxsplit=1)
+            except ValueError:
+                branch = default_branch
+            repo_path = urlparse(repo).path
+            repo_name = Path(repo_path).name
+            if repo_name.endswith(".git"):
+                repo_name = repo_name[:-4]
+            dirname = self._home / "notebooks" / repo_name
+            if dirname.is_dir():
+                # check for writeability
+                mode = dirname.stat().st_mode
+                perms = mode & 0o777
+                # We're going to make the simplifying assumption that the
+                # user owns the directory and is in the directory's group.
+                # If not, probably a lot else has already gone wrong.
+                can_write = perms & 0o222
+                if can_write:
+                    newname = Path(f"{dirname!s}.{now}")
+                    reloc_msg += f"* '{dirname!s}' -> '{newname!s}'\n"
+                    # We're also going to assume the user DOES have write
+                    # permission in the parent directory.  Again, if not,
+                    # terrible things probably already happened.
+                    dirname.rename(newname)
+                else:
+                    # If the repository exists and is not writeable, and has
+                    # the same last commit as the remote, then we don't
+                    # need to update it.
+                    cwd = Path.cwd()
+                    #
+                    # Git wants you to be in the working tree
+                    os.chdir(dirname)
+                    rx = run("git", "rev-parse", "HEAD", timeout=timeout)
+                    local_sha = rx.stdout if rx else ""
+                    rx = run(
+                        "git",
+                        "config",
+                        "--get",
+                        "remote.origin.url",
+                        timeout=timeout,
+                    )
+                    remote = rx.stdout if rx else ""
+                    rx = run(
+                        "git",
+                        "config",
+                        "--get",
+                        "ls-remote",
+                        remote,
+                        timeout=timeout,
+                    )
+                    ls_remote = rx.stdout if rx else ""
+                    lsr_lines = ls_remote.split(ls_remote)
+                    remote_sha = ""
+                    for line in lsr_lines:
+                        if line.endswith(f"refs/heads/{branch}"):
+                            remote_sha = line.split()[0]
+                            break
+                    # Get outta there
+                    os.chdir(cwd)
+                    if local_sha and remote_sha != local_sha:
+                        continue  # Up-to-date; we don't need to do anything
+                    self._recursive_make_writeable_and_remove(dirname)
+            # If the directory existed, it's gone now.
+            self._logger.debug(f"Cloning {repo}@{branch}")
+            run(
+                "git",
+                "clone",
+                "--depth",
+                "1",
+                repo,
+                "-b",
+                branch,
+                str(dirname),
+                timeout=timeout,
+            )
+            self._recursive_make_readonly(dirname)
+        if reloc_msg:
+            hdr = (
+                "# Directory relocation\n\n"
+                "The following directories were writeable, and were moved:\n"
+                "\n"
+                "\n"
+            )
+            reloc_msg = hdr + reloc_msg
+            (self._home / "notebooks" / "00_README_RELOCATION.md").write_text(
+                reloc_msg
+            )
+
+        self._logger.debug("Refreshed notebooks")
+
+    def _recursive_make_writeable_and_remove(self, tgt: Path) -> None:
+        # You can't rmdir() a directory with contents, so...
+        if not tgt.is_dir():
+            self._logger.warning(f"Removal of non-directory {tgt!s} requested")
+            return
+        self._logger.debug("Removing directory {str(tgt)}")
+        contents = tgt.glob("*")
+        for item in contents:
+            if item.is_dir():
+                self._recursive_make_writeable_and_remove(item)
+            else:
+                item.chmod(0o200)
+                item.unlink()
+        tgt.chmod(0o200)
+        tgt.rmdir()
+        self._logger.debug("Removed directory {str(tgt)}")
+
+    def _recursive_make_readonly(self, tgt: Path) -> None:
+        if not tgt.is_dir():
+            self._logger.warning(
+                f"Recursive ro-chmod requested on non-dir {tgt!s}"
+            )
+            return
+        self._logger.debug(f"Recursive ro-chmod requested for {tgt!s}")
+        contents = tgt.glob("*")
+        for item in contents:
+            if item.is_dir():
+                self._recursive_make_readonly(item)
+            perms = item.stat().st_mode
+            nowrite = perms & 0o777555
+            item.chmod(nowrite)
+        tgt.chmod(0o777555)
+        self._logger.debug("Recursive ro-chmod finished for {str(tgt)}")
+
+    def _setup_git(self) -> None:
+        self._logger.debug("Setting up git")
+        ge = self._env.get("GITHUB_EMAIL", "")
+        gn = self._env.get("GITHUB_NAME", "")
+        if ge:
+            self._logger.debug("Setting git 'user.email'")
+            run("git", "config", "--global", "--replace-all", "user.email", ge)
+        if gn:
+            self._logger.debug("Setting git 'user.name'")
+            run("git", "config", "--global", "--replace-all", "user.name", gn)
+        # Check for git-lfs
+        gitconfig = self._home / ".gitconfig"
+        if gitconfig.is_file():
+            gc = gitconfig.read_text().splitlines()
+            for line in gc:
+                if line == '[filter "lfs"]':
+                    # Already installed
+                    return
+        self._logger.debug("Installing Git LFS")
+        run("git", "lfs", "install")
 
     def _launch(self) -> None:
         if str_bool(self._env.get("NONINTERACTIVE", "")):
