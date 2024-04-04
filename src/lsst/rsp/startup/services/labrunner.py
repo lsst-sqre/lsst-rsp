@@ -81,6 +81,11 @@ class LabRunner:
         # Modify files
         self._modify_files()
 
+        # Decide between interactive and noninteractive start, do
+        # things that change between those two, and launch the Lab
+
+        self._launch()
+
     def _reset_user_env(self) -> None:
         if not str_bool(os.environ.get("RESET_USER_ENV", "")):
             self._logger.debug("User environment reset not requested")
@@ -125,7 +130,7 @@ class LabRunner:
         self._logger.debug("Ensuring that LOADRSPSTACK is set")
         if "LOADRSPSTACK" in self._env:
             self._logger.debug(
-                f"LOADRSPSTACK was set to '{self._env["LOADRSPSTACK"]}'"
+                f"LOADRSPSTACK was set to '{self._env['LOADRSPSTACK']}'"
             )
             return
         rspstack = top_dir / "rspstack" / "loadrspstack.bash"
@@ -397,6 +402,10 @@ class LabRunner:
         self._copy_butler_credentials()
         # Copy the logging profile
         self._copy_logging_profile()
+        # Copy directory colorization info
+        self._copy_dircolors()
+        # Copy contents of /etc/skel
+        self._copy_etc_skel()
 
     def _copy_butler_credentials(self) -> None:
         if (
@@ -488,8 +497,61 @@ class LabRunner:
         if copy:
             user_profile.write_bytes(ctr_contents)
 
-    def _modify_settings(self) -> None:
-        self._logger.debug("Modifying user settings if needed")
+    def _copy_dircolors(self) -> None:
+        self._logger.debug("Copying dircolors if needed")
+        if not (self._home / ".dir_colors").exists():
+            self._logger.debug("Copying dircolors")
+            dc = Path("/etc/dircolors.ansi-universal")
+            dc_txt = dc.read_text()
+            (self._home / ".dir_colors").write_text(dc_txt)
+        else:
+            self._logger.debug("Copying dircolors not needed")
+
+    def _copy_etc_skel(self) -> None:
+        self._logger.debug("Copying files from /etc/skel if they don't exist")
+        es_str = "/etc/skel"
+        es = Path(es_str)
+        # alas, Path.walk() requires Python 3.12, which isn't in the
+        # stack containers yet.
+        contents = os.walk(es)
+        #
+        # We assume that if the file exists at all, we should leave it alone.
+        # Users are allowed to modify these, after all.
+        #
+        for entry in contents:
+            dirs = [Path(x) for x in entry[1]]
+            files = [Path(x) for x in entry[2]]
+            # Determine what the destination directory should be
+            if entry[0] == es_str:
+                current_dir = self._home
+            else:
+                current_dir = self._home / entry[0][(len(es_str) + 1) :]
+            # For each directory in the tree at this level:
+            # if we don't already have one in our directory, make it.
+            for d_item in dirs:
+                if not (current_dir / d_item).is_dir():
+                    (current_dir / d_item).mkdir()
+                    self._logger.debug(f"Creating {current_dir / d_item!s}")
+            # For each file in the tree at this level:
+            # if we don't already have one in our directory, copy the
+            # contents.
+            for f_item in files:
+                if not (current_dir / f_item).exists():
+                    src = Path(entry[0] / f_item)
+                    self._logger.debug(f"Creating {current_dir / f_item!s}")
+                    src_contents = src.read_bytes()
+                    (current_dir / f_item).write_bytes(src_contents)
+
+    def _launch(self) -> None:
+        if str_bool(self._env.get("NONINTERACTIVE", "")):
+            self._start_noninteractive()
+            # We exec a lab; control never returns here
+        self._modify_interactive_settings()
+        self._manage_access_token()
+        self._start()
+
+    def _modify_interactive_settings(self) -> None:
+        self._logger.debug("Modifying interactive settings if needed")
         self._increase_log_limit()
 
     def _increase_log_limit(self) -> None:
@@ -522,16 +584,6 @@ class LabRunner:
         else:
             self._logger.debug("Log limit increase not needed")
 
-    def _copy_dircolors(self) -> None:
-        self._logger.debug("Copying dircolors if needed")
-        if not (self._home / ".dir_colors").exists():
-            self._logger.debug("Copying dircolors")
-            dc = Path("/etc/dircolors.ansi-universal")
-            dc_txt = dc.read_text()
-            (self._home / ".dir_colors").write_text(dc_txt)
-        else:
-            self._logger.debug("Copying dircolors not needed")
-
     def _manage_access_token(self) -> None:
         self._logger.debug("Updating access token")
         tokfile = self._home / ".access_token"
@@ -550,3 +602,9 @@ class LabRunner:
             self._logger.debug(f"Created {tokfile}")
         else:
             self._logger.debug("Could not determine access token")
+
+    def _start_noninteractive(self) -> None:
+        pass
+
+    def _start(self) -> None:
+        pass
