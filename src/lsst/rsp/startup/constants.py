@@ -6,6 +6,7 @@ __all__ = [
     "app_name",
     "logging_checksums",
     "max_number_outputs",
+    "noninteractive_config",
     "profile_path",
     "top_dir",
 ]
@@ -15,5 +16,8 @@ logging_checksums = [
     "2997fe99eb12846a1b724f0b82b9e5e6acbd1d4c29ceb9c9ae8f1ef5503892ec"
 ]
 max_number_outputs = 10000
+noninteractive_config = Path(
+    "/opt/lsst/software/jupyterlab/noninteractive/command/command.json"
+)
 profile_path = Path("/etc/profile.d/local05-path.sh")
 top_dir = Path("/opt/lsst/software")

@@ -36,6 +36,7 @@ def run(
     *args: str,
     logger: structlog.BoundLogger | None = None,
     timeout: int | None = None,
+    env: dict[str, str] | None = None,
 ) -> ProcessResult | None:
     """Run subprocesses with a simpler interface than raw subprocess.run()."""
     if logger is None:
@@ -46,7 +47,11 @@ def run(
     try:
         proc = ProcessResult.from_proc(
             subprocess.run(
-                args, capture_output=True, timeout=timeout, check=False
+                args,
+                capture_output=True,
+                timeout=timeout,
+                check=False,
+                env=env,
             )
         )
     except subprocess.TimeoutExpired as exc:

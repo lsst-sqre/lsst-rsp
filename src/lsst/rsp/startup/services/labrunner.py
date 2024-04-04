@@ -10,6 +10,7 @@ import sys
 import tempfile
 from pathlib import Path
 from shlex import join
+from time import sleep
 from typing import Any
 from urllib.parse import urlparse
 
@@ -20,9 +21,11 @@ from ..constants import (
     app_name,
     logging_checksums,
     max_number_outputs,
+    noninteractive_config,
     profile_path,
     top_dir,
 )
+from ..models.noninteractive import NonInteractiveExecution
 from ..storage.logging import configure_logging
 from ..storage.process import run
 from ..util import str_bool
@@ -78,17 +81,15 @@ class LabRunner:
         # Set up the (complicated) environment for the JupyterLab process
         self._configure_env()
 
-        # Modify files
+        # Modify files.  If $HOME is not mounted and writeable, things will
+        # go wrong here.
         self._modify_files()
 
         # Set up git parameters and git-lfs
         self._setup_git()
 
         # Clear EUPS cache
-        run("eups", "admin", "clearCache")
-
-        # flush everything to disk again
-        os.sync()
+        run("eups", "admin", "clearCache", logger=self._logger)
 
         # Decide between interactive and noninteractive start, do
         # things that change between those two, and launch the Lab
@@ -242,7 +243,7 @@ class LabRunner:
         self._logger.debug("Determining user name")
         user = self._env.get("USER", "")
         if not user:
-            proc = run("id", "-u", "-n")
+            proc = run("id", "-u", "-n", logger=self._logger)
             if proc is None:
                 raise ValueError("Could not determine user")
             user = proc.stdout.strip()
@@ -595,7 +596,13 @@ class LabRunner:
                     #
                     # Git wants you to be in the working tree
                     os.chdir(dirname)
-                    rx = run("git", "rev-parse", "HEAD", timeout=timeout)
+                    rx = run(
+                        "git",
+                        "rev-parse",
+                        "HEAD",
+                        timeout=timeout,
+                        logger=self._logger,
+                    )
                     local_sha = rx.stdout if rx else ""
                     rx = run(
                         "git",
@@ -603,6 +610,7 @@ class LabRunner:
                         "--get",
                         "remote.origin.url",
                         timeout=timeout,
+                        logger=self._logger,
                     )
                     remote = rx.stdout if rx else ""
                     rx = run(
@@ -612,6 +620,7 @@ class LabRunner:
                         "ls-remote",
                         remote,
                         timeout=timeout,
+                        logger=self._logger,
                     )
                     ls_remote = rx.stdout if rx else ""
                     lsr_lines = ls_remote.split(ls_remote)
@@ -637,6 +646,7 @@ class LabRunner:
                 branch,
                 str(dirname),
                 timeout=timeout,
+                logger=self._logger,
             )
             self._recursive_make_readonly(dirname)
         if reloc_msg:
@@ -693,10 +703,26 @@ class LabRunner:
         gn = self._env.get("GITHUB_NAME", "")
         if ge:
             self._logger.debug("Setting git 'user.email'")
-            run("git", "config", "--global", "--replace-all", "user.email", ge)
+            run(
+                "git",
+                "config",
+                "--global",
+                "--replace-all",
+                "user.email",
+                ge,
+                logger=self._logger,
+            )
         if gn:
             self._logger.debug("Setting git 'user.name'")
-            run("git", "config", "--global", "--replace-all", "user.name", gn)
+            run(
+                "git",
+                "config",
+                "--global",
+                "--replace-all",
+                "user.name",
+                gn,
+                logger=self._logger,
+            )
         # Check for git-lfs
         gitconfig = self._home / ".gitconfig"
         if gitconfig.is_file():
@@ -706,7 +732,7 @@ class LabRunner:
                     # Already installed
                     return
         self._logger.debug("Installing Git LFS")
-        run("git", "lfs", "install")
+        run("git", "lfs", "install", logger=self._logger)
 
     def _launch(self) -> None:
         if str_bool(self._env.get("NONINTERACTIVE", "")):
@@ -770,7 +796,63 @@ class LabRunner:
             self._logger.debug("Could not determine access token")
 
     def _start_noninteractive(self) -> None:
-        pass
+        launcher = NonInteractiveExecution.from_config(noninteractive_config)
+        launcher.execute(env=self._env)
 
     def _start(self) -> None:
-        pass
+        log_level = "DEBUG" if self._debug else "INFO"
+        cmd = [
+            "python3",
+            "-s",
+            "-m",
+            "jupyter",
+            "labhub",
+            "--ip=0.0.0.0",
+            "--port=8888",
+            "--no-browser",
+            f"--notebook-dir={self._home!s}",
+            f"--hub-prefix={self._env['JUPYTERHUB_PATH']}",
+            f"--hub-host={self._env['EXTERNAL_HOST']}",
+            f"--log-level={log_level}",
+            "--ContentsManager.allow_hidden=True",
+            "--FileContentsManager.hide_globs=[]",
+            "--KernelSpecManager.ensure_native_kernel=False",
+            "--QtExporter.enabled=False",
+            "--PDFExporter.enabled=False",
+            "--WebPDFExporter.allow_chromium_download=True",
+            "--ServerApp.shutdown_no_activity_timeout="
+            + self._env["NO_ACTIVITY_TIMEOUT"],
+            "--MappingKernelManager.cull_idle_timeout="
+            + self._env["CULL_KERNEL_IDLE_TIMEOUT"],
+            "--MappingKernelManager.cull_connected="
+            + self._env["CULL_KERNEL_CONNECTED"],
+            "--MappingKernelManager.cull_interval="
+            + self._env["CULL_KERNEL_INTERVAL"],
+            "--MappingKernelManager.default_kernel_name=lsst",
+            "--TerminalManager.cull_inactive_timeout="
+            + self._env["CULL_TERMINAL_INACTIVE_TIMEOUT"],
+            "--TerminalManager.cull_interval="
+            + self._env["CULL_TERMINAL_INTERVAL"],
+            "--LabApp.check_for_updates_class=jupyterlab.NeverCheckForUpdate",
+        ]
+        self._logger.debug("Command to run:", command=cmd)
+        if self._debug:
+            # Maybe we want to parameterize these?
+            retries = 10
+            sleep_interval = 60
+            for i in range(retries):
+                self._logger.debug(f"Lab spawn attempt {i+1}/{retries}:")
+                proc = run(*cmd, logger=self._logger, env=self._env)
+                self._logger.debug("Lab exited", proc=proc)
+                self._logger.debug(f"Waiting for {sleep_interval}s")
+                sleep(sleep_interval)
+            self._logger.debug("Exiting")
+            sys.exit(0)
+        # Flush any open files before exec()
+        os.sync()
+        # In non-debug mode, we don't use a subprocess: we exec the
+        # Jupyter Python process directly.  We use os.execvpe() because we
+        # want the Python in the path (which we currently know to be the
+        # stack Python), we have a list of arguments we just created, and
+        # we want to pass the environment we built up.
+        os.execvpe(cmd[0], cmd, env=self._env)
