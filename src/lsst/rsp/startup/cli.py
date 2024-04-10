@@ -7,5 +7,4 @@ def main() -> None:
     """Make a LabRunner and call its single public method.  All settings are
     in the environment.
     """
-    lr = LabRunner()
-    lr.go()
+    LabRunner().go()

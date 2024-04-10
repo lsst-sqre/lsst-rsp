@@ -22,8 +22,13 @@ classifiers = [
     "Typing :: Typed",
 ]
 requires-python = ">=3.11"
-# Use requirements/main.in for runtime dependencies instead
-dependencies = []
+dependencies = [
+    "Deprecated",
+    "IPython",
+    "pyvo",
+    "structlog",
+    "symbolicmode",
+]
 dynamic = ["version"]
 
 [[project.authors]]
@@ -31,7 +36,21 @@ name = "Association of Universities for Research in Astronomy, Inc. (AURA)"
 email = "sqre-admin@lists.lsst.org"
 
 [project.scripts]
-runlab = "lsst.rsp.startup.cli:main"
+launch-rubin-jupyterlab = "lsst.rsp.startup.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    # Typing
+    "types-deprecated",
+    "types-requests",
+    # Testing
+    "coverage[toml]",
+    "pytest",
+    "pytest-asyncio",
+    "mypy",
+    # Documentation
+    "scriv",
+]
 
 [project.urls]
 Homepage = "https://rsp.lsst.io/"

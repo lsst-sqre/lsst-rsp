@@ -11,16 +11,14 @@ import symbolicmode
 
 import lsst.rsp
 from lsst.rsp.startup.services.labrunner import LabRunner
-from lsst.rsp.startup.storage.process import run
-from lsst.rsp.startup.util import str_bool
 
 
-def test_object() -> None:
+def test_object(rsp_env: None) -> None:
     lr = LabRunner()
     assert lr._debug is False
 
 
-def test_debug_object(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_debug_object(rsp_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DEBUG", "1")
     lr = LabRunner()
     assert lr._debug is True
@@ -31,14 +29,7 @@ def test_debug_object(monkeypatch: pytest.MonkeyPatch) -> None:
 #
 
 
-def test_remove_sudo_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SUDO_USER", "hambone")
-    lr = LabRunner()
-    lr._remove_sudo_env()
-    assert "SUDO_USER" not in lr._env
-
-
-def test_cpu_vars(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cpu_vars(rsp_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
     lr = LabRunner()
     lr._set_cpu_variables()
     assert lr._env["CPU_LIMIT"] == "1"
@@ -96,34 +87,40 @@ def test_expand_panda_tilde(
     )
 
 
-def test_set_timeout_vars(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_set_timeout_vars(
+    rsp_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("NO_ACTIVITY_TIMEOUT", "300")
     lr = LabRunner()
     lr._set_timeout_variables()
     assert lr._env["NO_ACTIVITY_TIMEOUT"] == "300"
-    assert lr._env["CULL_KERNEL_IDLE_TIMEOUT"] == "43200"
+    assert "CULL_KERNEL_IDLE_TIMEOUT" not in lr._env
 
 
-def test_set_launch_params(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_set_launch_params(
+    rsp_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("JUPYTERHUB_BASE_URL", "/nb/")
     monkeypatch.setenv("EXTERNAL_INSTANCE_URL", "https://lab.example.com:8443")
     lr = LabRunner()
     lr._set_launch_params()
-    assert lr._env["JUPYTERHUB_PATH"] == "/nb/hub"
-    assert lr._env["EXTERNAL_HOST"] == "lab.example.com"
+    assert lr._stash["jupyterhub_path"] == "/nb/hub"
+    assert lr._stash["external_host"] == "lab.example.com"
 
 
-def test_set_firefly_variables(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_set_firefly_variables(
+    rsp_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("EXTERNAL_INSTANCE_URL", "https://lab.example.com:8443")
     lr = LabRunner()
     lr._set_firefly_variables()
-    assert lr._env["FIREFLY_URL"] == "https://lab.example.com:8443/firefly/"
+    assert lr._env["FIREFLY_URL"] == "https://lab.example.com:8443/firefly"
     assert lr._env["FIREFLY_HTML"] == "slate.html"
 
 
-def test_unset_jupyter_prefer_env_path() -> None:
+def test_force_jupyter_prefer_env_path_false(rsp_env: None) -> None:
     lr = LabRunner()
-    lr._unset_jupyter_prefer_env_path()
+    lr._force_jupyter_prefer_env_path_false()
     assert lr._env["JUPYTER_PREFER_ENV_PATH"] == "no"
 
 
@@ -134,7 +131,6 @@ def test_set_butler_credential_vars(
     monkeypatch.setenv("PGPASSFILE", "/etc/secret/pgpass")
     lr = LabRunner()
     lr._set_butler_credential_variables()
-    assert lr._env["USER_CREDENTIALS_DIR"] == str(lr._home / ".lsst")
     assert lr._env["AWS_SHARED_CREDENTIALS_FILE"] == str(
         lr._home / ".lsst" / "aws.creds"
     )
@@ -153,7 +149,7 @@ def test_set_butler_credential_vars(
 def test_copy_butler_credentials(
     monkeypatch: pytest.MonkeyPatch, rsp_env: None
 ) -> None:
-    td = lsst.rsp.startup.constants.top_dir
+    td = lsst.rsp.startup.constants.TOP_DIR_PATH
     secret_dir = td / "jupyterlab" / "secrets"
     monkeypatch.setenv(
         "AWS_SHARED_CREDENTIALS_FILE", str(secret_dir / "aws-credentials.ini")
@@ -199,7 +195,7 @@ def test_copy_logging_profile(
     pfile = (
         lr._home / ".ipython" / "profile_default" / "startup" / "20-logging.py"
     )
-    td = lsst.rsp.startup.constants.top_dir
+    td = lsst.rsp.startup.constants.TOP_DIR_PATH
     assert not pfile.exists()
     pfile.parent.mkdir(parents=True)
     lr._copy_logging_profile()
@@ -230,7 +226,7 @@ def test_copy_etc_skel(monkeypatch: pytest.MonkeyPatch, rsp_env: None) -> None:
     lr = LabRunner()
     assert not (lr._home / ".gitconfig").exists()
     assert not (lr._home / ".pythonrc").exists()
-    etc = lsst.rsp.startup.constants.etc
+    etc = lsst.rsp.startup.constants.ETC_PATH
     prc = (etc / "skel" / ".pythonrc").read_text()
     prc += "\n# Local mods\n"
     (lr._home / ".pythonrc").write_text(prc)
@@ -251,12 +247,12 @@ def test_copy_etc_skel(monkeypatch: pytest.MonkeyPatch, rsp_env: None) -> None:
 
 
 def test_refresh_notebooks(
-    monkeypatch: pytest.MonkeyPatch, rsp_env: None
+    monkeypatch: pytest.MonkeyPatch, rsp_env: None, git_repo: Path
 ) -> None:
-    source_repo = Path(__file__).parent / "support" / "repo"
+    source_repo = git_repo
     monkeypatch.setenv("AUTO_REPO_SPECS", f"file://{source_repo!s}@main")
     lr = LabRunner()
-    repo = lr._home / "notebooks" / "repo"
+    repo = lr._home / "notebooks" / source_repo.name
     assert not repo.exists()
     lr._refresh_notebooks()
     paths = (repo, repo / "README.md")
@@ -278,29 +274,6 @@ def _is_readonly(paths: Iterable[Path]) -> bool:
         if mode & mask != 0:
             return False
     return True
-
-
-def test_set_git_params(
-    monkeypatch: pytest.MonkeyPatch, rsp_env: None
-) -> None:
-    email = "hambone@opera.borphee.quendor"
-    name = "Hambone"
-    monkeypatch.setenv("GITHUB_EMAIL", email)
-    monkeypatch.setenv("GITHUB_NAME", name)
-    gc = run("git", "config", "user.email")
-    assert gc is not None
-    assert gc.stdout.strip() != email
-    gc = run("git", "config", "user.name")
-    assert gc is not None
-    assert gc.stdout.strip() != name
-    lr = LabRunner()
-    lr._set_git_email_and_name()
-    gc = run("git", "config", "user.email")
-    assert gc is not None
-    assert gc.stdout.strip() == email
-    gc = run("git", "config", "user.name")
-    assert gc is not None
-    assert gc.stdout.strip() == name
 
 
 def test_setup_gitlfs(monkeypatch: pytest.MonkeyPatch, rsp_env: None) -> None:
@@ -342,7 +315,7 @@ def test_manage_access_token(
     monkeypatch.setenv("DEBUG", "1")
     token = "token-of-esteem"
     monkeypatch.setenv("ACCESS_TOKEN", token)
-    td = lsst.rsp.startup.constants.top_dir
+    td = lsst.rsp.startup.constants.TOP_DIR_PATH
     ctr_file = td / "jupyterlab" / "secrets" / "token"
     assert not ctr_file.exists()
     lr = LabRunner()
@@ -361,18 +334,3 @@ def test_manage_access_token(
     assert tfile.read_text() == token
     ctr_file.unlink()
     assert not ctr_file.exists()
-
-
-#
-# Utility function
-#
-
-
-def test_str_bool() -> None:
-    assert str_bool("1") is True
-    assert str_bool("0") is False
-    assert str_bool("420.69") is True
-    assert str_bool("y") is True
-    assert str_bool("Yo Mama") is True
-    assert str_bool("nevermore") is False
-    assert str_bool("Flibbertigibbet") is False

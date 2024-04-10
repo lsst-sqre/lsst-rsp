@@ -9,7 +9,7 @@ from typing import Any
 import structlog
 from structlog.types import EventDict
 
-from ..constants import app_name
+from ..constants import APP_NAME
 
 __all__ = ["configure_logging"]
 
@@ -28,7 +28,7 @@ def configure_logging(debug: bool = False) -> None:
     log_level = "DEBUG" if debug else "INFO"
     stream_handler = logging.StreamHandler(stream=sys.stdout)
     stream_handler.setFormatter(logging.Formatter("%(message)s"))
-    logger = logging.getLogger(app_name)
+    logger = logging.getLogger(APP_NAME)
     logger.handlers = []
     logger.addHandler(stream_handler)
     logger.setLevel(log_level)

@@ -1,4 +1,4 @@
-"""Control RSP startup."""
+"""RSP Lab launcher."""
 
 import configparser
 import contextlib
@@ -6,8 +6,11 @@ import datetime
 import hashlib
 import json
 import os
+import pwd
+import shutil
 import sys
 from pathlib import Path
+from subprocess import SubprocessError
 from time import sleep
 from typing import Any
 from urllib.parse import urlparse
@@ -17,26 +20,26 @@ import symbolicmode
 
 from ... import get_access_token, get_digest
 from ..constants import (
-    app_name,
-    etc,
-    logging_checksums,
-    max_number_outputs,
-    noninteractive_config,
-    top_dir,
+    APP_NAME,
+    ETC_PATH,
+    MAX_NUMBER_OUTPUTS,
+    NONINTERACTIVE_CONFIG_PATH,
+    PREVIOUS_LOGGING_CHECKSUMS,
+    TOP_DIR_PATH,
 )
-from ..models.noninteractive import NonInteractiveExecution
+from ..models.noninteractive import NonInteractiveExecutor
+from ..storage.command import Command
 from ..storage.logging import configure_logging
-from ..storage.process import run
-from ..util import str_bool
 
 __all__ = ["LabRunner"]
 
 
 class LabRunner:
     """Class to start JupyterLab using the environment supplied by
-    JupyterHub and the Nublado controller.  This environment is very
-    Rubin-specific and opinionated, and will likely not work for anyone
-    else's science platform.
+    JupyterHub and the Nublado controller.
+
+    This environment is very Rubin-specific and opinionated, and will
+    likely not work for anyone else's science platform.
 
     If that's you, use this for inspiration, but don't expect this to
     work out of the box.
@@ -44,104 +47,108 @@ class LabRunner:
 
     def __init__(self) -> None:
         # We start with a copy of our own environment
-        self._env: dict[str, str] = {}
-        self._env.update(os.environ)
-        self._debug = str_bool(self._env.get("DEBUG", ""))
+        self._env = os.environ.copy()
+        self._debug = bool(self._env.get("DEBUG", ""))
         configure_logging(self._debug)
-        self._logger = structlog.get_logger(app_name)
+        self._logger = structlog.get_logger(APP_NAME)
         self._home = Path(self._env["HOME"])  # If unset, it's OK to die.
+        if "JUPYTERHUB_BASE_URL" not in self._env:
+            raise ValueError("'JUPYTERHUB_BASE_URL' must be set")
         self._user = ""
+        self._stash: dict[str, str] = {}  # Used for settings we don't expose.
+        self._cmd = Command(ignore_fail=True, logger=self._logger)
 
     def go(self) -> None:
         """Start the user lab."""
-        # Reset the environment first.
-        # This, currently, runs in the shell launcher shim.
-        # There's an argument for leaving it there forever, in case the
-        # user has messed up their Python environment so bad that they
-        # can't even start a Python interpreter.
+        # The LabRunner is not actually the first thing that launches when
+        # we start a user lab.
+        #
+        # At the moment, the only Python 3 in the Lab container is the one that
+        # is part of the DM stack conda environment.
+        #
+        # So to get far enough to even start the LabRunner, we need to have
+        # already sourced the shell magic that sets up that conda env.
+        #
+        # However, even before we do that, we check the environment to see
+        # whether it needs resetting.  That's actually kind of handy to do
+        # before we start any Python process, because it's not impossible that
+        # the user could have messed up their own Python environment so badly
+        # that Python couldn't even get this far.
+        #
+        # When we split the stack Python from the Python-that-runs-JuptyerLab,
+        # there will be no need to set up the stack before launching
+        # Jupyterlab, and the likelihood that the user environment is so
+        # corrupt that the user cannot get a terminal session open to purge
+        # it themselves will lessen greatly.  At that point moving the
+        # user-environment purge into lsst-rsp may be feasible.
+        #
+
+        # Set up environment variables that we'll need either to launch the
+        # Lab or for the user's terminal environment
         self._configure_env()
 
-        # Modify files.  If $HOME is not mounted and writeable, things will
-        # go wrong here.
-        self._modify_files()
+        # Copy files into the user's home space.  If $HOME is not mounted
+        # and writeable, things will go wrong here.
+        self._copy_files_to_user_homedir()
 
-        # Check out notebooks, set up git parameters and git-lfs
+        # Check out notebooks, and set up git-lfs
         self._setup_git()
 
         # Clear EUPS cache
-        run("eups", "admin", "clearCache", logger=self._logger)
+        self._cmd.run("eups", "admin", "clearCache")
 
         # Decide between interactive and noninteractive start, do
         # things that change between those two, and launch the Lab
         self._launch()
+
+    def _externalize(self, setting: str) -> str:
+        # We build multiple settings by concatenating `EXTERNAL_INSTANCE_URL`
+        # with some other string.  Make this robust by accepting either
+        # a slash or no slash on the end of `EXTERNAL_INSTANCE_URL` and
+        # returning a string with exactly one slash as a separator between
+        # the external URL and the setting.
+        ext_url = self._env["EXTERNAL_INSTANCE_URL"]
+        return f"{ext_url.strip('/')}/{setting.lstrip('/')}"
 
     #
     # Next up, a big block of setting up our subprocess environment.
     #
     def _configure_env(self) -> None:
         self._logger.debug("Configuring environment for JupyterLab process")
-        # Set USER if not present
+
         self._set_user()
-        # Remove the SUDO env vars that give Conda fits.
-        self._remove_sudo_env()
-        # Set a whole bunch of threading guideline variables
+
         self._set_cpu_variables()
-        # Extract image digest
+
         self._set_image_digest()
-        # Expand tilde in PANDA_CONFIG_ROOT, if needed
+
         self._expand_panda_tilde()
-        # We no longer need to rebuild the lab, so we no longer
-        # need to set NODE_OPTIONS --max-old-space-size
-        # Set any missing timeout variables
-        self._set_timeout_variables()
-        # Set up launch parameters
+
         self._set_launch_params()
-        # Set up Firefly variables
+
         self._set_firefly_variables()
-        # Unset JUPYTER_PREFER_ENV_PATH
-        self._unset_jupyter_prefer_env_path()
-        # Set up variables for butler credential copy
+
+        self._force_jupyter_prefer_env_path_false()
+
         self._set_butler_credential_variables()
-        #
-        # That should do it.
-        #
+
         self._logger.debug("Lab process environment", env=self._env)
 
     def _set_user(self) -> None:
         self._logger.debug("Determining user name")
         user = self._env.get("USER", "")
         if not user:
-            proc = run("id", "-u", "-n", logger=self._logger)
-            if proc is None:
-                raise ValueError("Could not determine user")
-            user = proc.stdout.strip()
-            self._env["USER"] = user
-
-    def _remove_sudo_env(self) -> None:
-        self._logger.debug("Removing SUDO_ environment variables")
-        sudo_vars = ("SUDO_USER", "SUDO_UID", "SUDO_GID", "SUDO_COMMAND")
-        for sv in sudo_vars:
-            if sv in self._env:
-                self._logger.debug(f"Removed environment variable '{sv}'")
-                del self._env[sv]
+            self._env["USER"] = pwd.getpwuid(os.getuid()).pw_name
 
     def _set_cpu_variables(self) -> None:
         self._logger.debug("Setting CPU threading variables")
-        lim = self._env.get("CPU_LIMIT", "1")
-        lim_n: int = 0
-        if lim:
-            # It should be a string representing a number, and we're
-            # going to coerce it to an integer.  If that fails, we
-            # force it to 1.
-            try:
-                lim_n = int(float(lim))
-            except ValueError:
-                lim_n = 1
-        if lim_n < 1:
-            lim_n = 1
-        # Now it has an integral value at least 1.  Re-convert it back to
-        # a string, and stuff it into a bunch of variables.
-        lim = str(lim_n)
+        try:
+            cpu_limit = int(float(self._env.get("CPU_LIMIT", "1")))
+        except ValueError:
+            cpu_limit = 1
+        if cpu_limit < 1:
+            cpu_limit = 1
+        cpu_limit_str = str(cpu_limit)
         for vname in (
             "CPU_LIMIT",
             "CPU_COUNT",
@@ -154,8 +161,8 @@ class LabRunner:
             "OPENBLAS_NUM_THREADS",
             "RAYON_NUM_THREADS",
         ):
-            self._env[vname] = lim
-            self._logger.debug(f"Set env var {vname} to {lim}")
+            self._env[vname] = cpu_limit_str
+            self._logger.debug(f"Set '{vname}' -> '{cpu_limit_str}'")
 
     def _set_image_digest(self) -> None:
         self._logger.debug("Setting image digest if available")
@@ -170,81 +177,50 @@ class LabRunner:
     def _expand_panda_tilde(self) -> None:
         self._logger.debug("Expanding tilde in PANDA_CONFIG_ROOT, if needed")
         if "PANDA_CONFIG_ROOT" in self._env:
-            pcr = self._env["PANDA_CONFIG_ROOT"]
-            if pcr.find("~") == 0:
-                # The tilde has to be at the start of the path.
-                #
-                # We don't have multiple users in the RSP, so "~" and "~<user>"
-                # mean the same thing, and ~<anything-else> doesn't exist.
-                t_user = pcr
-                rest = ""
-                if pcr.find("/") > 0:
-                    # Does it have a directory in it?
-                    t_user, rest = pcr.split("/")
-                if t_user in ("~", f"~{self._env['USER']}"):
-                    if rest:
-                        newpcr = str(self._home / rest)
-                    else:
-                        newpcr = str(self._home)
-                    self._logger.debug(
-                        f"Replacing PANDA_CONFIG_ROOT '{pcr}' with '{newpcr}'"
-                    )
-                    self._env["PANDA_CONFIG_ROOT"] = newpcr
-                else:
-                    self._logger.warning(f"Cannot expand tilde in '{pcr}'")
-
-    def _set_timeout_variables(self) -> None:
-        self._logger.debug("Setting new timeout variables if needed.")
-        defaults = {
-            "NO_ACTIVITY_TIMEOUT": "120000",
-            "CULL_KERNEL_IDLE_TIMEOUT": "43200",
-            "CULL_KERNEL_CONNECTED": "True",
-            "CULL_KERNEL_INTERVAL": "300",
-            "CULL_TERMINAL_INACTIVE_TIMEOUT": "120000",
-            "CULL_TERMINAL_INTERVAL": "300",
-        }
-        for k in defaults:
-            v = defaults[k]
-            if k not in self._env:
-                self._logger.debug(f"Setting '{k}' to '{v}'")
-                self._env[k] = v
+            username = self._env["USER"]
+            path = Path(self._env["PANDA_CONFIG_ROOT"])
+            path_parts = path.parts
+            if path_parts[0] in ("~", f"~{username}"):
+                new_path = Path(self._home, *path_parts[1:])
+                self._logger.debug(
+                    f"Replacing PANDA_CONFIG_ROOT '{path!s}'"
+                    f"with '{new_path!s}'"
+                )
+                self._env["PANDA_CONFIG_ROOT"] = str(new_path)
+            elif path_parts[0].startswith("~"):
+                self._logger.warning(f"Cannot expand tilde in '{path!s}'")
 
     def _set_launch_params(self) -> None:
         # We're getting rid of the complicated stuff based on
         # HUB_SERVICE_HOST, since that was pre-version-3 nublado.
         self._logger.debug("Setting launch parameters")
-        base_url = self._env.get("JUPYTERHUB_BASE_URL", "")
+        base_url = self._env["JUPYTERHUB_BASE_URL"]
         jh_path = f"{base_url}hub"
         ext_url = self._env.get("EXTERNAL_INSTANCE_URL", "")
-        ext_parsed = urlparse(ext_url)
-        host = ext_parsed.hostname or ""
-        # These don't actually need to be exposed as environment
-        # variables, but we need them to launch the lab, and it's
-        # as convenient a place as anywhere to stash them
-        self._env["JUPYTERHUB_PATH"] = jh_path
-        self._env["EXTERNAL_HOST"] = host
+        host = urlparse(ext_url).hostname or ""
+
+        self._stash["jupyterhub_path"] = jh_path
+        self._stash["external_host"] = host
         self._logger.debug(
             f"Set host to '{host}', and Hub path to '{jh_path}'"
         )
 
     def _set_firefly_variables(self) -> None:
         self._logger.debug("Setting firefly variables")
-        fr = self._env.get("FIREFLY_ROUTE", "")
-        if not fr:
-            self._env["FIREFLY_ROUTE"] = "/firefly/"
-        ext_f_url = self._env.get("EXTERNAL_FIREFLY_URL", "")
-        if ext_f_url:
-            self._env["FIREFLY_URL"] = ext_f_url
-        else:
-            ext_i_url = self._env.get("EXTERNAL_INSTANCE_URL", "")
-            self._env["FIREFLY_URL"] = (
-                f"{ext_i_url}{self._env['FIREFLY_ROUTE']}"
-            )
-        self._env["FIREFLY_HTML"] = "slate.html"
+        firefly_route = self._env.get("FIREFLY_ROUTE", "/firefly")
+        self._env["FIREFLY_URL"] = self._externalize(firefly_route)
         self._logger.debug(f"Firefly URL -> '{self._env['FIREFLY_URL']}'")
+        # This determines the landing page on the Firefly service.  For
+        # the RSP, it's always `slate.html`.
+        self._env["FIREFLY_HTML"] = "slate.html"
 
-    def _unset_jupyter_prefer_env_path(self) -> None:
-        self._logger.debug("Unsetting JUPYTER_PREFER_ENV_PATH")
+    def _force_jupyter_prefer_env_path_false(self) -> None:
+        # cf https://discourse.jupyter.org/t/jupyter-paths-priority-order/7771
+        # and https://jupyter-core.readthedocs.io/en/latest/changelog.html#id63
+        #
+        # As long as we're running from the stack Python, we need to ensure
+        # this is turned off.
+        self._logger.debug("Forcing JUPYTER_PREFER_ENV_PATH to 'no'")
         self._env["JUPYTER_PREFER_ENV_PATH"] = "no"
 
     def _set_butler_credential_variables(self) -> None:
@@ -252,8 +228,6 @@ class LabRunner:
         # file substitution.  This is the environment part.
         self._logger.debug("Setting Butler credential variables")
         cred_dir = self._home / ".lsst"
-        # As with the launch parameters, we'll need it later.
-        self._env["USER_CREDENTIALS_DIR"] = str(cred_dir)
         if "AWS_SHARED_CREDENTIALS_FILE" in self._env:
             awsname = Path(self._env["AWS_SHARED_CREDENTIALS_FILE"]).name
             self._env["ORIG_AWS_SHARED_CREDENTIALS_FILE"] = self._env[
@@ -274,25 +248,22 @@ class LabRunner:
     #
     # The second big block is a bunch of file manipulation.
     #
-    def _modify_files(self) -> None:
-        # Copy the Butler credentials into the user's space
+    def _copy_files_to_user_homedir(self) -> None:
+        self._logger.debug("Copying files to user home directory")
+
         self._copy_butler_credentials()
-        # Copy the logging profile
+
         self._copy_logging_profile()
-        # Copy directory colorization info
+
         self._copy_dircolors()
-        # Copy contents of /etc/skel
+
         self._copy_etc_skel()
 
     def _copy_butler_credentials(self) -> None:
-        if (
-            "AWS_SHARED_CREDENTIALS_FILE" in self._env
-            or "PGPASSFILE" in self._env
-        ):
-            if "AWS_SHARED_CREDENTIALS_FILE" in self._env:
-                self._merge_aws_creds()
-            if "PGPASSFILE" in self._env:
-                self._merge_pgpass()
+        if "AWS_SHARED_CREDENTIALS_FILE" in self._env:
+            self._merge_aws_creds()
+        if "PGPASSFILE" in self._env:
+            self._merge_pgpass()
 
     def _merge_aws_creds(self) -> None:
         #
@@ -324,19 +295,19 @@ class LabRunner:
         for line in lines:
             if ":" not in line:
                 continue
-            pg, pw = line.rsplit(":", maxsplit=1)
-            config[pg] = pw.rstrip()
+            connection, passwd = line.rsplit(":", maxsplit=1)
+            config[connection] = passwd.rstrip()
         # Update config from container-supplied one
         ro_pgpass = Path(self._env["ORIG_PGPASSFILE"])
         lines = ro_pgpass.read_text().splitlines()
         for line in lines:
             if ":" not in line:
                 continue
-            pg, pw = line.rsplit(":", maxsplit=1)
-            config[pg] = pw.rstrip()
+            connection, passwd = line.rsplit(":", maxsplit=1)
+            config[connection] = passwd.rstrip()
         with home_pgpass.open("w") as f:
-            for pg in config:
-                f.write(f"{pg}:{config[pg]}\n")
+            for connection in config:
+                f.write(f"{connection}:{config[connection]}\n")
 
     def _copy_logging_profile(self) -> None:
         self._logger.debug("Copying logging profile if needed")
@@ -347,38 +318,39 @@ class LabRunner:
             / "startup"
             / "20-logging.py"
         )
+        #
+        # We have a list of previous supplied versions of 20-logging.py.
+        #
+        # If the one we have has a hash that matches any of those, then
+        # there is a new container-supplied 20-logging.py that should replace
+        # it.  However, if we have a 20-logging.py that does not match
+        # any of those, then it has been locally modified, and we should
+        # not replace it.  If we don't have one at all, we need to copy it
+        # into place.
+        #
         copy = False
-        user_loghash = ""
-        if user_profile.is_file():
+        if not user_profile.is_file():
+            copy = True  # It doesn't exist, so we need one.
+        else:
             user_loghash = hashlib.sha256(
                 user_profile.read_bytes()
             ).hexdigest()
-        ctr_profile = top_dir / "jupyterlab" / "20-logging.py"
-        ctr_contents = ctr_profile.read_bytes()
-        ctr_loghash = hashlib.sha256(ctr_contents).hexdigest()
-        if user_loghash == ctr_loghash:
-            self._logger.debug("User log profile is up-to-date; not copying")
-        elif not user_loghash:
-            self._logger.debug("No user log profile; copying")
-            copy = True
-        elif user_loghash in logging_checksums:
-            self._logger.debug(
-                f"User log profile '{user_loghash}' is" " out-of-date; copying"
-            )
-            copy = True
-        else:
-            self._logger.debug(
-                f"User log profile '{user_loghash}' is"
-                " locally modified; not copying"
-            )
+            if user_loghash in PREVIOUS_LOGGING_CHECKSUMS:
+                self._logger.debug(
+                    f"User log profile '{user_loghash}' is"
+                    " out-of-date; replacing with current version."
+                )
+                copy = True
         if copy:
-            user_profile.write_bytes(ctr_contents)
+            user_profile.write_bytes(
+                (TOP_DIR_PATH / "jupyterlab" / "20-logging.py").read_bytes()
+            )
 
     def _copy_dircolors(self) -> None:
         self._logger.debug("Copying dircolors if needed")
         if not (self._home / ".dir_colors").exists():
             self._logger.debug("Copying dircolors")
-            dc = etc / "dircolors.ansi-universal"
+            dc = ETC_PATH / "dircolors.ansi-universal"
             dc_txt = dc.read_text()
             (self._home / ".dir_colors").write_text(dc_txt)
         else:
@@ -386,10 +358,10 @@ class LabRunner:
 
     def _copy_etc_skel(self) -> None:
         self._logger.debug("Copying files from /etc/skel if they don't exist")
-        es = etc / "skel"
+        etc_skel = ETC_PATH / "skel"
         # alas, Path.walk() requires Python 3.12, which isn't in the
         # stack containers yet.
-        contents = os.walk(es)
+        contents = os.walk(etc_skel)
         #
         # We assume that if the file exists at all, we should leave it alone.
         # Users are allowed to modify these, after all.
@@ -398,10 +370,10 @@ class LabRunner:
             dirs = [Path(x) for x in entry[1]]
             files = [Path(x) for x in entry[2]]
             # Determine what the destination directory should be
-            if entry[0] == str(es):
+            if entry[0] == str(etc_skel):
                 current_dir = self._home
             else:
-                current_dir = self._home / entry[0][(len(str(es)) + 1) :]
+                current_dir = self._home / entry[0][(len(str(etc_skel)) + 1) :]
             # For each directory in the tree at this level:
             # if we don't already have one in our directory, make it.
             for d_item in dirs:
@@ -421,43 +393,38 @@ class LabRunner:
     def _setup_git(self) -> None:
         # Refresh standard notebooks
         self._refresh_notebooks()
-        # Set up email and name
-        self._set_git_email_and_name()
         # Set up Git LFS
         self._setup_gitlfs()
 
     def _refresh_notebooks(self) -> None:
         # Find the notebook specs.  I think we can ditch our fallbacks now.
         self._logger.debug("Refreshing notebooks")
-        urls = self._env.get("AUTO_REPO_SPECS", "")
-        url_l = urls.split(",")
-        if not url_l:
+        urls = self._env.get("AUTO_REPO_SPECS", "").split(",")
+        if not urls:
             self._logger.debug("No repos listed in 'AUTO_REPO_SPECS'")
             return
-        # Specs should include the branch too.
-        default_branch = self._env.get("AUTO_REPO_BRANCH", "prod")
-        now = datetime.datetime.now(datetime.UTC).isoformat()
         timeout = 30  # Probably don't need to parameterize it.
         reloc_msg = ""
-        for url in url_l:
+        now = datetime.datetime.now(datetime.UTC).isoformat()
+        for url in urls:
             try:
                 repo, branch = url.split("@", maxsplit=1)
             except ValueError:
-                branch = default_branch
-                repo = url
+                self._logger.warning(
+                    "Could not get repo/branch information from"
+                    f" '{self._env['AUTO_REPO_SPECS']}'"
+                )
+                return
             repo_path = urlparse(repo).path
             repo_name = Path(repo_path).name
             if repo_name.endswith(".git"):
                 repo_name = repo_name[:-4]
             dirname = self._home / "notebooks" / repo_name
             if dirname.is_dir():
-                # check for writeability
-                mode = dirname.stat().st_mode
-                perms = mode & 0o777
                 # We're going to make the simplifying assumption that the
                 # user owns the directory and is in the directory's group.
                 # If not, probably a lot else has already gone wrong.
-                can_write = perms & 0o222
+                can_write = dirname.stat().st_mode & 0o222
                 if can_write:
                     self._logger.debug(f"'{dirname!s}' is writeable; moving")
                     newname = Path(f"{dirname!s}.{now}")
@@ -477,11 +444,11 @@ class LabRunner:
                         continue  # Up-to-date; we don't need to do anything
                     # It's writeable or stale; re-clone.
                     self._logger.debug(f"Need to remove '{dirname!s}'")
-                    symbolicmode.chmod(dirname, "u+w")
-                    self._recursive_remove(dirname)
+                    symbolicmode.chmod(dirname, "u+w", recurse=True)
+                    shutil.rmtree(dirname)
             # If the directory existed, it's gone now.
             self._logger.debug(f"Cloning {repo}@{branch}")
-            run(
+            proc = self._cmd.run(
                 "git",
                 "clone",
                 "--depth",
@@ -491,8 +458,10 @@ class LabRunner:
                 branch,
                 str(dirname),
                 timeout=timeout,
-                logger=self._logger,
             )
+            if proc.returncode != 0:
+                self._logger.error("git clone failed", proc=proc)
+                return
             symbolicmode.chmod(dirname, "a-w", recurse=True)
         if reloc_msg:
             hdr = (
@@ -515,91 +484,55 @@ class LabRunner:
         # commit hash as the remote.
         #
         # Git wants you to be in the working tree
-        with contextlib.chdir(path):
-            rx = run(
-                "git",
-                "rev-parse",
-                "HEAD",
-                timeout=timeout,
-                logger=self._logger,
+        rx = self._cmd.run(
+            "git",
+            "rev-parse",
+            "HEAD",
+            cwd=path,
+            timeout=timeout,
+        )
+        local_sha = rx.stdout.strip() if rx else None
+        if not local_sha:
+            self._logger.error(f"Could not determine local SHA for '{path!s}'")
+            return False
+        rx = self._cmd.run(
+            "git",
+            "config",
+            "--get",
+            "remote.origin.url",
+            timeout=timeout,
+        )
+        remote = rx.stdout.strip() if rx else None
+        if not remote:
+            self._logger.error(
+                "Could not determine git remote origin for" f"'{path!s}'"
             )
-            local_sha = rx.stdout.strip() if rx else ""
-            rx = run(
-                "git",
-                "config",
-                "--get",
-                "remote.origin.url",
-                timeout=timeout,
-                logger=self._logger,
-            )
-            remote = rx.stdout.strip() if rx else ""
-            rx = run(
-                "git",
-                "ls-remote",
-                remote,
-                timeout=timeout,
-                logger=self._logger,
-            )
-            ls_remote = rx.stdout.strip() if rx else ""
-            lsr_lines = ls_remote.split("\n")
-            remote_sha = ""
-            for line in lsr_lines:
-                line.strip()
-                if line.endswith(f"\trefs/heads/{branch}"):
-                    remote_sha = line.split()[0]
-                    break
+            return False
+        rx = self._cmd.run(
+            "git",
+            "ls-remote",
+            remote,
+            timeout=timeout,
+        )
+        ls_remote = rx.stdout.strip() if rx else None
+        lsr_lines = ls_remote.split("\n")
+        remote_sha = None
+        for line in lsr_lines:
+            line.strip()
+            if line.endswith(f"\trefs/heads/{branch}"):
+                remote_sha = line.split()[0]
+                break
+        if not remote_sha:
+            self._logger.error("Could not determine SHA for {remote}")
+            return False
         self._logger.debug(f"local /remote SHA: {local_sha}/{remote_sha}")
         return local_sha == remote_sha
-
-    def _recursive_remove(self, tgt: Path) -> None:
-        # You can't rmdir() a directory with contents, so...
-        if not tgt.is_dir():
-            self._logger.warning(f"Removal of non-directory {tgt!s} requested")
-            return
-        self._logger.debug(f"Removing directory {tgt!s}")
-        contents = tgt.glob("*")
-        for item in contents:
-            if item.is_dir():
-                self._recursive_remove(item)
-            else:
-                item.unlink()
-                self._logger.debug(f"Removed item {item!s}")
-        # All contents are gone; remove current directory
-        tgt.rmdir()
-        self._logger.debug(f"Removed directory {tgt!s}")
-
-    def _set_git_email_and_name(self) -> None:
-        self._logger.debug("Setting up git")
-        ge = self._env.get("GITHUB_EMAIL", "")
-        gn = self._env.get("GITHUB_NAME", "")
-        if ge:
-            self._logger.debug("Setting git 'user.email'")
-            run(
-                "git",
-                "config",
-                "--global",
-                "--replace-all",
-                "user.email",
-                ge,
-                logger=self._logger,
-            )
-        if gn:
-            self._logger.debug("Setting git 'user.name'")
-            run(
-                "git",
-                "config",
-                "--global",
-                "--replace-all",
-                "user.name",
-                gn,
-                logger=self._logger,
-            )
 
     def _setup_gitlfs(self) -> None:
         # Check for git-lfs
         self._logger.debug("Installing Git LFS if needed")
         if not self._check_for_git_lfs():
-            run("git", "lfs", "install", logger=self._logger)
+            self._cmd.run("git", "lfs", "install")
             self._logger.debug("Git LFS installed")
 
     def _check_for_git_lfs(self) -> bool:
@@ -613,7 +546,7 @@ class LabRunner:
         return False
 
     def _launch(self) -> None:
-        if str_bool(self._env.get("NONINTERACTIVE", "")):
+        if bool(self._env.get("NONINTERACTIVE", "")):
             self._start_noninteractive()
             # We exec a lab; control never returns here
         self._modify_interactive_settings()
@@ -640,15 +573,13 @@ class LabRunner:
         if settings_file.is_file():
             with settings_file.open() as f:
                 settings = json.load(f)
-        else:
-            settings_file.touch()
         current_limit = settings.get("maxNumberOutputs", 0)
-        if current_limit < max_number_outputs:
+        if current_limit < MAX_NUMBER_OUTPUTS:
             self._logger.warning(
                 f"Changing maxNumberOutputs in {settings_file!s}"
-                f" from {current_limit} to {max_number_outputs}"
+                f" from {current_limit} to {MAX_NUMBER_OUTPUTS}"
             )
-            settings["maxNumberOutputs"] = max_number_outputs
+            settings["maxNumberOutputs"] = MAX_NUMBER_OUTPUTS
             with settings_file.open("w") as f:
                 json.dump(settings, f, sort_keys=True, indent=4)
         else:
@@ -658,7 +589,9 @@ class LabRunner:
         self._logger.debug("Updating access token")
         tokfile = self._home / ".access_token"
         tokfile.unlink(missing_ok=True)
-        ctr_token = top_dir / "software" / "jupyterlab" / "secrets" / "token"
+        ctr_token = (
+            TOP_DIR_PATH / "software" / "jupyterlab" / "secrets" / "token"
+        )
         if ctr_token.exists():
             self._logger.debug(f"Symlinking {tokfile!s}->{ctr_token!s}")
             tokfile.symlink_to(ctr_token)
@@ -675,8 +608,30 @@ class LabRunner:
             self._logger.debug("Could not determine access token")
 
     def _start_noninteractive(self) -> None:
-        launcher = NonInteractiveExecution.from_config(noninteractive_config)
+        launcher = NonInteractiveExecutor.from_config(
+            NONINTERACTIVE_CONFIG_PATH
+        )
         launcher.execute(env=self._env)
+
+    def _set_timeout_variables(self) -> list[str]:
+        timeout_map = {
+            "NO_ACTIVITY_TIMEOUT": "ServerApp.shutdown_no_activity_timeout",
+            "CULL_KERNEL_IDLE_TIMEOUT": (
+                "MappingKernelManager.cull_idle_timeout"
+            ),
+            "CULL_KERNEL_CONNECTED": "MappingKernelManager.cull_connected",
+            "CULL_KERNEL_INTERVAL": "MappingKernelManager.cull_interval",
+            "CULL_TERMINAL_INACTIVE_TIMEOUT": (
+                "TerminalManager.cull_inactive_timeout"
+            ),
+            "CULL_TERMINAL_INTERVAL": "TerminalManager.cull_interval",
+        }
+        result: list[str] = []
+        for setting in timeout_map:
+            val = self._env.get(setting, "")
+            if val:
+                result.append(f"--{timeout_map[setting]}={val}")
+        return result
 
     def _start(self) -> None:
         log_level = "DEBUG" if self._debug else "INFO"
@@ -690,8 +645,8 @@ class LabRunner:
             "--port=8888",
             "--no-browser",
             f"--notebook-dir={self._home!s}",
-            f"--hub-prefix={self._env['JUPYTERHUB_PATH']}",
-            f"--hub-host={self._env['EXTERNAL_HOST']}",
+            f"--hub-prefix={self._stash['jupyterhub_path']}",
+            f"--hub-host={self._stash['external_host']}",
             f"--log-level={log_level}",
             "--ContentsManager.allow_hidden=True",
             "--FileContentsManager.hide_globs=[]",
@@ -699,21 +654,10 @@ class LabRunner:
             "--QtExporter.enabled=False",
             "--PDFExporter.enabled=False",
             "--WebPDFExporter.allow_chromium_download=True",
-            "--ServerApp.shutdown_no_activity_timeout="
-            + self._env["NO_ACTIVITY_TIMEOUT"],
-            "--MappingKernelManager.cull_idle_timeout="
-            + self._env["CULL_KERNEL_IDLE_TIMEOUT"],
-            "--MappingKernelManager.cull_connected="
-            + self._env["CULL_KERNEL_CONNECTED"],
-            "--MappingKernelManager.cull_interval="
-            + self._env["CULL_KERNEL_INTERVAL"],
             "--MappingKernelManager.default_kernel_name=lsst",
-            "--TerminalManager.cull_inactive_timeout="
-            + self._env["CULL_TERMINAL_INACTIVE_TIMEOUT"],
-            "--TerminalManager.cull_interval="
-            + self._env["CULL_TERMINAL_INTERVAL"],
             "--LabApp.check_for_updates_class=jupyterlab.NeverCheckForUpdate",
         ]
+        cmd.extend(self._set_timeout_variables())
         self._logger.debug("Command to run:", command=cmd)
         if self._debug:
             # Maybe we want to parameterize these?
@@ -721,14 +665,31 @@ class LabRunner:
             sleep_interval = 60
             for i in range(retries):
                 self._logger.debug(f"Lab spawn attempt {i+1}/{retries}:")
-                proc = run(*cmd, logger=self._logger, env=self._env)
-                self._logger.debug("Lab exited", proc=proc)
-                self._logger.debug(f"Waiting for {sleep_interval}s")
+                try:
+                    proc = self._cmd.run(*cmd, env=self._env)
+                except SubprocessError as exc:
+                    self._logger.exception(
+                        f"Command {cmd} failed to run", exc=exc
+                    )
+                if proc:
+                    if proc.returncode:
+                        self._logger.error(
+                            f"Lab exited with returncode {proc.returncode}",
+                            proc=proc,
+                        )
+                    else:
+                        self._logger.warning(
+                            "Lab process exited with returncode 0", proc=proc
+                        )
+                else:
+                    self._logger.error(f"Lab process {cmd} failed to run")
+                self._logger.info(f"Waiting for {sleep_interval}s")
                 sleep(sleep_interval)
             self._logger.debug("Exiting")
             sys.exit(0)
-        # Flush any open files before exec()
-        os.sync()
+        # Flush open files before exec()
+        sys.stdout.flush()
+        sys.stderr.flush()
         # In non-debug mode, we don't use a subprocess: we exec the
         # Jupyter Python process directly.  We use os.execvpe() because we
         # want the Python in the path (which we currently know to be the
