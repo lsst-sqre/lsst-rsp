@@ -13,12 +13,14 @@ import lsst.rsp
 from lsst.rsp.startup.services.labrunner import LabRunner
 
 
-def test_object(rsp_env: None) -> None:
+@pytest.mark.usefixtures("_rsp_env")
+def test_object() -> None:
     lr = LabRunner()
     assert lr._debug is False
 
 
-def test_debug_object(rsp_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.usefixtures("_rsp_env")
+def test_debug_object(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DEBUG", "1")
     lr = LabRunner()
     assert lr._debug is True
@@ -29,7 +31,8 @@ def test_debug_object(rsp_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
 #
 
 
-def test_cpu_vars(rsp_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.usefixtures("_rsp_env")
+def test_cpu_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     lr = LabRunner()
     lr._set_cpu_variables()
     assert lr._env["CPU_LIMIT"] == "1"
@@ -56,9 +59,8 @@ def test_cpu_vars(rsp_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
 # No test for set_image_digest() because we test that in utils_test
 
 
-def test_expand_panda_tilde(
-    monkeypatch: pytest.MonkeyPatch, rsp_env: None
-) -> None:
+@pytest.mark.usefixtures("_rsp_env")
+def test_expand_panda_tilde(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PANDA_CONFIG_ROOT", "~")
     lr = LabRunner()
     lr._expand_panda_tilde()
@@ -87,9 +89,8 @@ def test_expand_panda_tilde(
     )
 
 
-def test_set_timeout_vars(
-    rsp_env: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
+@pytest.mark.usefixtures("_rsp_env")
+def test_set_timeout_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("NO_ACTIVITY_TIMEOUT", "300")
     lr = LabRunner()
     lr._set_timeout_variables()
@@ -97,9 +98,8 @@ def test_set_timeout_vars(
     assert "CULL_KERNEL_IDLE_TIMEOUT" not in lr._env
 
 
-def test_set_launch_params(
-    rsp_env: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
+@pytest.mark.usefixtures("_rsp_env")
+def test_set_launch_params(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("JUPYTERHUB_BASE_URL", "/nb/")
     monkeypatch.setenv("EXTERNAL_INSTANCE_URL", "https://lab.example.com:8443")
     lr = LabRunner()
@@ -108,9 +108,8 @@ def test_set_launch_params(
     assert lr._stash["external_host"] == "lab.example.com"
 
 
-def test_set_firefly_variables(
-    rsp_env: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
+@pytest.mark.usefixtures("_rsp_env")
+def test_set_firefly_variables(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("EXTERNAL_INSTANCE_URL", "https://lab.example.com:8443")
     lr = LabRunner()
     lr._set_firefly_variables()
@@ -118,15 +117,15 @@ def test_set_firefly_variables(
     assert lr._env["FIREFLY_HTML"] == "slate.html"
 
 
-def test_force_jupyter_prefer_env_path_false(rsp_env: None) -> None:
+@pytest.mark.usefixtures("_rsp_env")
+def test_force_jupyter_prefer_env_path_false() -> None:
     lr = LabRunner()
     lr._force_jupyter_prefer_env_path_false()
     assert lr._env["JUPYTER_PREFER_ENV_PATH"] == "no"
 
 
-def test_set_butler_credential_vars(
-    monkeypatch: pytest.MonkeyPatch, rsp_env: None
-) -> None:
+@pytest.mark.usefixtures("_rsp_env")
+def test_set_butler_credential_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", "/etc/secret/aws.creds")
     monkeypatch.setenv("PGPASSFILE", "/etc/secret/pgpass")
     lr = LabRunner()
@@ -146,9 +145,8 @@ def test_set_butler_credential_vars(
 #
 
 
-def test_copy_butler_credentials(
-    monkeypatch: pytest.MonkeyPatch, rsp_env: None
-) -> None:
+@pytest.mark.usefixtures("_rsp_env")
+def test_copy_butler_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     td = lsst.rsp.startup.constants.TOP_DIR_PATH
     secret_dir = td / "jupyterlab" / "secrets"
     monkeypatch.setenv(
@@ -188,9 +186,8 @@ def test_copy_butler_credentials(
     assert cp["tertiary"]["aws_secret_access_key"] == "key03"
 
 
-def test_copy_logging_profile(
-    monkeypatch: pytest.MonkeyPatch, rsp_env: None
-) -> None:
+@pytest.mark.usefixtures("_rsp_env")
+def test_copy_logging_profile(monkeypatch: pytest.MonkeyPatch) -> None:
     lr = LabRunner()
     pfile = (
         lr._home / ".ipython" / "profile_default" / "startup" / "20-logging.py"
@@ -213,16 +210,16 @@ def test_copy_logging_profile(
     assert new_contents != s_contents
 
 
-def test_copy_dircolors(
-    monkeypatch: pytest.MonkeyPatch, rsp_env: None
-) -> None:
+@pytest.mark.usefixtures("_rsp_env")
+def test_copy_dircolors(monkeypatch: pytest.MonkeyPatch) -> None:
     lr = LabRunner()
     assert not (lr._home / ".dir_colors").exists()
     lr._copy_dircolors()
     assert (lr._home / ".dir_colors").exists()
 
 
-def test_copy_etc_skel(monkeypatch: pytest.MonkeyPatch, rsp_env: None) -> None:
+@pytest.mark.usefixtures("_rsp_env")
+def test_copy_etc_skel(monkeypatch: pytest.MonkeyPatch) -> None:
     lr = LabRunner()
     assert not (lr._home / ".gitconfig").exists()
     assert not (lr._home / ".pythonrc").exists()
@@ -246,8 +243,9 @@ def test_copy_etc_skel(monkeypatch: pytest.MonkeyPatch, rsp_env: None) -> None:
 #
 
 
+@pytest.mark.usefixtures("_rsp_env")
 def test_refresh_notebooks(
-    monkeypatch: pytest.MonkeyPatch, rsp_env: None, git_repo: Path
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path
 ) -> None:
     source_repo = git_repo
     monkeypatch.setenv("AUTO_REPO_SPECS", f"file://{source_repo!s}@main")
@@ -276,7 +274,8 @@ def _is_readonly(paths: Iterable[Path]) -> bool:
     return True
 
 
-def test_setup_gitlfs(monkeypatch: pytest.MonkeyPatch, rsp_env: None) -> None:
+@pytest.mark.usefixtures("_rsp_env")
+def test_setup_gitlfs(monkeypatch: pytest.MonkeyPatch) -> None:
     lr = LabRunner()
     assert lr._check_for_git_lfs() is False
     lr._setup_gitlfs()
@@ -288,9 +287,8 @@ def test_setup_gitlfs(monkeypatch: pytest.MonkeyPatch, rsp_env: None) -> None:
 #
 
 
-def test_increase_log_limit(
-    monkeypatch: pytest.MonkeyPatch, rsp_env: None
-) -> None:
+@pytest.mark.usefixtures("_rsp_env")
+def test_increase_log_limit(monkeypatch: pytest.MonkeyPatch) -> None:
     lr = LabRunner()
     settings = (
         lr._home
@@ -309,9 +307,8 @@ def test_increase_log_limit(
     assert obj["maxNumberOutputs"] >= 10000
 
 
-def test_manage_access_token(
-    monkeypatch: pytest.MonkeyPatch, rsp_env: None
-) -> None:
+@pytest.mark.usefixtures("_rsp_env")
+def test_manage_access_token(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DEBUG", "1")
     token = "token-of-esteem"
     monkeypatch.setenv("ACCESS_TOKEN", token)

@@ -14,7 +14,7 @@ from ..constants import APP_NAME
 __all__ = ["configure_logging"]
 
 
-def configure_logging(debug: bool = False) -> None:
+def configure_logging(*, debug: bool = False) -> None:
     """Stripped-down version of Safir's "configure_logging()"; we
     always add timestamps, and if we're not running with debugging,
     it's INFO-level JSON logs; if we are running with debugging,

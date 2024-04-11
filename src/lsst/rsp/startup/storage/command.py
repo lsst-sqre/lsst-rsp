@@ -30,6 +30,7 @@ class Command:
 
     def __init__(
         self,
+        *,
         capture_output: bool = True,
         ignore_fail: bool = False,
         text: bool = True,

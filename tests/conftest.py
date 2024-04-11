@@ -13,7 +13,7 @@ from lsst.rsp.startup.storage.command import Command
 
 
 @pytest.fixture
-def rsp_paths(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+def _rsp_paths(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     # For each of these, we want to cover both the "from ..constants import"
     # and the "import lsst.rsp.constants" case.
     with patch(
@@ -36,8 +36,8 @@ def rsp_paths(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 
 @pytest.fixture
-def rsp_env(
-    rsp_paths: None, monkeypatch: pytest.MonkeyPatch
+def _rsp_env(
+    _rsp_paths: None, monkeypatch: pytest.MonkeyPatch
 ) -> Iterator[None]:
     template = Path(__file__).parent / "support" / "files" / "homedir"
     with TemporaryDirectory() as homedir:

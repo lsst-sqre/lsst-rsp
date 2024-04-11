@@ -49,7 +49,7 @@ class LabRunner:
         # We start with a copy of our own environment
         self._env = os.environ.copy()
         self._debug = bool(self._env.get("DEBUG", ""))
-        configure_logging(self._debug)
+        configure_logging(debug=self._debug)
         self._logger = structlog.get_logger(APP_NAME)
         self._home = Path(self._env["HOME"])  # If unset, it's OK to die.
         if "JUPYTERHUB_BASE_URL" not in self._env:
@@ -115,23 +115,14 @@ class LabRunner:
     #
     def _configure_env(self) -> None:
         self._logger.debug("Configuring environment for JupyterLab process")
-
         self._set_user()
-
         self._set_cpu_variables()
-
         self._set_image_digest()
-
         self._expand_panda_tilde()
-
         self._set_launch_params()
-
         self._set_firefly_variables()
-
         self._force_jupyter_prefer_env_path_false()
-
         self._set_butler_credential_variables()
-
         self._logger.debug("Lab process environment", env=self._env)
 
     def _set_user(self) -> None:
@@ -250,13 +241,9 @@ class LabRunner:
     #
     def _copy_files_to_user_homedir(self) -> None:
         self._logger.debug("Copying files to user home directory")
-
         self._copy_butler_credentials()
-
         self._copy_logging_profile()
-
         self._copy_dircolors()
-
         self._copy_etc_skel()
 
     def _copy_butler_credentials(self) -> None:
