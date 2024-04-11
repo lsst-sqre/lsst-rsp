@@ -487,6 +487,7 @@ class LabRunner:
             "config",
             "--get",
             "remote.origin.url",
+            cwd=path,
             timeout=timeout,
         )
         remote = rx.stdout.strip() if rx else None
