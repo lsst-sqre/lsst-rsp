@@ -128,7 +128,12 @@ def get_digest() -> str:
         Digest of the Docker image this code is running inside, or the empty
         string if the digest could not be determined.
     """
-    return os.environ.get("JUPYTER_IMAGE_SPEC", "")
+    spec = os.environ.get("JUPYTER_IMAGE_SPEC", "")
+    hash_marker = "@sha256:"
+    hash_pos = spec.find(hash_marker)
+    if hash_pos == -1:
+        return ""
+    return spec[hash_pos + len(hash_marker) :]
 
 
 def get_access_token(
