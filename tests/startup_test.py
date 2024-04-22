@@ -3,6 +3,7 @@
 import configparser
 import json
 import os
+import shutil
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -143,6 +144,27 @@ def test_set_butler_credential_vars(monkeypatch: pytest.MonkeyPatch) -> None:
 #
 # File manipulation tests
 #
+
+
+@pytest.mark.usefixtures("_rsp_env")
+def test_create_credential_dir(monkeypatch: pytest.MonkeyPatch) -> None:
+    td = lsst.rsp.startup.constants.TOP_DIR_PATH
+    secret_dir = td / "jupyterlab" / "secrets"
+    monkeypatch.setenv(
+        "AWS_SHARED_CREDENTIALS_FILE", str(secret_dir / "aws-credentials.ini")
+    )
+    monkeypatch.setenv(
+        "PGPASSFILE", str(secret_dir / "postgres-credentials.txt")
+    )
+    cred_dir = Path(os.environ["HOME"]) / ".lsst"
+    assert cred_dir.exists()
+    shutil.rmtree(cred_dir)
+    assert not cred_dir.exists()
+    lr = LabRunner()
+    lr._set_butler_credential_variables()
+    assert not cred_dir.exists()
+    lr._copy_butler_credentials()
+    assert cred_dir.exists()
 
 
 @pytest.mark.usefixtures("_rsp_env")

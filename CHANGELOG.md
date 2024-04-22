@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.5.2'></a>
+## 0.5.2 (2024-04-22)
+
+### Bug fixes
+
+- If the user credentials directory `$HOME/.lsst` does not exist, create it.
+
 <a id='changelog-0.4.3'></a>
 ## 0.4.3 (2024-03-22)
 
