@@ -260,6 +260,8 @@ class LabRunner:
         # is correct, but leave any other user config alone.
         #
         hc_path = Path(self._env["AWS_SHARED_CREDENTIALS_FILE"])
+        if not hc_path.parent.exists():
+            hc_path.parent.mkdir(mode=0o700, parents=True)
         hc_path.touch(mode=0o600, exist_ok=True)
         home_config = configparser.ConfigParser()
         home_config.read(str(hc_path))
@@ -277,6 +279,8 @@ class LabRunner:
         config = {}
         # Get current config from homedir
         home_pgpass = Path(self._env["PGPASSFILE"])
+        if not home_pgpass.parent.exists():
+            home_pgpass.parent.mkdir(mode=0o700, parents=True)
         home_pgpass.touch(mode=0o600, exist_ok=True)
         lines = home_pgpass.read_text().splitlines()
         for line in lines:
