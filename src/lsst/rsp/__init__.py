@@ -8,6 +8,7 @@ from .catalog import (
     get_tap_service,
     retrieve_query,
 )
+from .client import RSPClient
 from .log import IPythonHandler, forward_lsst_log
 from .service import get_datalink_result, get_siav2_service
 from .utils import (
@@ -32,6 +33,7 @@ except PackageNotFoundError:
 __all__ = [
     "__version__",
     "IPythonHandler",
+    "RSPClient",
     "format_bytes",
     "forward_lsst_log",
     "get_access_token",
