@@ -6,6 +6,17 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.5.3'></a>
+## 0.5.3 (2024-05-09)
+
+### New features
+
+- Add RSPClient, a configured HTTP client for services in the same RSP instance.
+
+### Bug fixes
+
+- If the path to the logging profile directory doesn't exist, create it.
+
 <a id='changelog-0.5.2'></a>
 ## 0.5.2 (2024-04-22)
 
