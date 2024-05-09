@@ -334,7 +334,7 @@ class LabRunner:
                 copy = True
         if copy:
             pdir = user_profile.parent
-            if not pdir:
+            if not pdir.is_dir():
                 pdir.mkdir(parents=True)
             user_profile.write_bytes(
                 (TOP_DIR_PATH / "jupyterlab" / "20-logging.py").read_bytes()
