@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.5.4'></a>
+## 0.5.4 (2024-05-09)
+
+### Bug fixes
+
+- implement mkdir of logging startup parent correctly
+
 <a id='changelog-0.5.3'></a>
 ## 0.5.3 (2024-05-09)
 
