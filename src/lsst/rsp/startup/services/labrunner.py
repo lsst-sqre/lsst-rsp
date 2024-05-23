@@ -201,9 +201,6 @@ class LabRunner:
         firefly_route = self._env.get("FIREFLY_ROUTE", "/firefly")
         self._env["FIREFLY_URL"] = self._externalize(firefly_route)
         self._logger.debug(f"Firefly URL -> '{self._env['FIREFLY_URL']}'")
-        # This determines the landing page on the Firefly service.  For
-        # the RSP, it's always `slate.html`.
-        self._env["FIREFLY_HTML"] = "slate.html"
 
     def _force_jupyter_prefer_env_path_false(self) -> None:
         # cf https://discourse.jupyter.org/t/jupyter-paths-priority-order/7771

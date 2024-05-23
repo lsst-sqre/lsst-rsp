@@ -115,7 +115,6 @@ def test_set_firefly_variables(monkeypatch: pytest.MonkeyPatch) -> None:
     lr = LabRunner()
     lr._set_firefly_variables()
     assert lr._env["FIREFLY_URL"] == "https://lab.example.com:8443/firefly"
-    assert lr._env["FIREFLY_HTML"] == "slate.html"
 
 
 @pytest.mark.usefixtures("_rsp_env")
