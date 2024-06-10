@@ -8,7 +8,6 @@ __all__ = [
     "PREVIOUS_LOGGING_CHECKSUMS",
     "MAX_NUMBER_OUTPUTS",
     "NONINTERACTIVE_CONFIG_PATH",
-    "TOP_DIR_PATH",
 ]
 
 APP_NAME = "nublado"
@@ -33,16 +32,25 @@ MAX_NUMBER_OUTPUTS = 10000
 Used to prevent OOM-killing if some cell generates a lot of output.
 """
 
-TOP_DIR_PATH = Path("/opt/lsst/software")
+STACK_PATH = Path("/opt/lsst/software/stack")
 """
-Location where the DM stack and our Lab machinery are rooted.
+Location where the DM stack is rooted.
+
+Overrideable for testing.
+"""
+
+JUPYTERLAB_PATH = Path("/usr/local/share/jupyterlab")
+"""
+Location where our Jupyterlab machinery is rooted.
 
 Overrideable for testing.
 """
 
 NONINTERACTIVE_CONFIG_PATH = Path(
-    TOP_DIR_PATH / "jupyterlab" / "noninteractive" / "command" / "command.json"
+    JUPYTERLAB_PATH / "noninteractive" / "command" / "command.json"
 )
 """
 Location where a noninteractive pod will mount its command configuration.
+
+Overrideable for testing.
 """

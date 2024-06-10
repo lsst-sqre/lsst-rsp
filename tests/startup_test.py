@@ -147,8 +147,7 @@ def test_set_butler_credential_vars(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.usefixtures("_rsp_env")
 def test_create_credential_dir(monkeypatch: pytest.MonkeyPatch) -> None:
-    td = lsst.rsp.startup.constants.TOP_DIR_PATH
-    secret_dir = td / "jupyterlab" / "secrets"
+    secret_dir = lsst.rsp.startup.constants.JUPYTERLAB_PATH / "secrets"
     monkeypatch.setenv(
         "AWS_SHARED_CREDENTIALS_FILE", str(secret_dir / "aws-credentials.ini")
     )
@@ -168,8 +167,7 @@ def test_create_credential_dir(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.usefixtures("_rsp_env")
 def test_copy_butler_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
-    td = lsst.rsp.startup.constants.TOP_DIR_PATH
-    secret_dir = td / "jupyterlab" / "secrets"
+    secret_dir = lsst.rsp.startup.constants.JUPYTERLAB_PATH / "secrets"
     monkeypatch.setenv(
         "AWS_SHARED_CREDENTIALS_FILE", str(secret_dir / "aws-credentials.ini")
     )
@@ -213,13 +211,14 @@ def test_copy_logging_profile(monkeypatch: pytest.MonkeyPatch) -> None:
     pfile = (
         lr._home / ".ipython" / "profile_default" / "startup" / "20-logging.py"
     )
-    td = lsst.rsp.startup.constants.TOP_DIR_PATH
     assert not pfile.exists()
     pfile.parent.mkdir(parents=True)
     lr._copy_logging_profile()
     assert pfile.exists()
     h_contents = pfile.read_text()
-    sfile = td / "jupyterlab" / "20-logging.py"
+    sfile = (
+        lsst.rsp.startup.constants.JUPYTERLAB_PATH / "etc" / "20-logging.py"
+    )
     assert sfile.exists()
     s_contents = sfile.read_text()
     assert s_contents == h_contents
@@ -257,6 +256,24 @@ def test_copy_etc_skel(monkeypatch: pytest.MonkeyPatch) -> None:
     lrc = (lr._home / ".pythonrc").read_text()
     assert src != lrc
     assert (lr._home / "notebooks" / ".user_setups").exists()
+
+
+@pytest.mark.usefixtures("_rsp_env")
+def test_relocate_user_files(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RESET_USER_ENV", "1")
+    lr = LabRunner()
+    assert not (lr._home / ".local").exists()
+    assert not (lr._home / "notebooks" / ".user_setups").exists()
+    (lr._home / ".local").mkdir()
+    (lr._home / ".local" / "foo").write_text("bar")
+    (lr._home / "notebooks").mkdir()
+    (lr._home / "notebooks" / ".user_setups").write_text("#!/bin/sh\n")
+    lr._relocate_user_environment_if_requested()
+    assert not (lr._home / ".local").exists()
+    assert not (lr._home / "notebooks" / ".user_setups").exists()
+    reloc = next(iter((lr._home).glob(".user_env.*")))
+    assert (reloc / "local" / "foo").read_text() == "bar"
+    assert (reloc / "notebooks" / "user_setups").read_text() == "#!/bin/sh\n"
 
 
 #
@@ -333,8 +350,7 @@ def test_manage_access_token(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DEBUG", "1")
     token = "token-of-esteem"
     monkeypatch.setenv("ACCESS_TOKEN", token)
-    td = lsst.rsp.startup.constants.TOP_DIR_PATH
-    ctr_file = td / "jupyterlab" / "secrets" / "token"
+    ctr_file = lsst.rsp.startup.constants.JUPYTERLAB_PATH / "secrets" / "token"
     assert not ctr_file.exists()
     lr = LabRunner()
     tfile = lr._home / ".access_token"

@@ -22,10 +22,10 @@ from ... import get_access_token, get_digest
 from ..constants import (
     APP_NAME,
     ETC_PATH,
+    JUPYTERLAB_PATH,
     MAX_NUMBER_OUTPUTS,
     NONINTERACTIVE_CONFIG_PATH,
     PREVIOUS_LOGGING_CHECKSUMS,
-    TOP_DIR_PATH,
 )
 from ..models.noninteractive import NonInteractiveExecutor
 from ..storage.command import Command
@@ -60,28 +60,13 @@ class LabRunner:
 
     def go(self) -> None:
         """Start the user lab."""
-        # The LabRunner is not actually the first thing that launches when
-        # we start a user lab.
-        #
-        # At the moment, the only Python 3 in the Lab container is the one that
-        # is part of the DM stack conda environment.
-        #
-        # So to get far enough to even start the LabRunner, we need to have
-        # already sourced the shell magic that sets up that conda env.
-        #
-        # However, even before we do that, we check the environment to see
-        # whether it needs resetting.  That's actually kind of handy to do
-        # before we start any Python process, because it's not impossible that
-        # the user could have messed up their own Python environment so badly
-        # that Python couldn't even get this far.
-        #
-        # When we split the stack Python from the Python-that-runs-JuptyerLab,
-        # there will be no need to set up the stack before launching
-        # Jupyterlab, and the likelihood that the user environment is so
-        # corrupt that the user cannot get a terminal session open to purge
-        # it themselves will lessen greatly.  At that point moving the
-        # user-environment purge into lsst-rsp may be feasible.
-        #
+        # If the user somehow manages to screw up their local environment
+        # so badly that Jupyterlab won't even start, we will have to
+        # bail them out on the fileserver end.  Since Jupyter Lab is in
+        # its own venv, which is not writeable by the user, this should
+        # require quite a bit of creativity.
+
+        self._relocate_user_environment_if_requested()
 
         # Set up environment variables that we'll need either to launch the
         # Lab or for the user's terminal environment
@@ -93,9 +78,6 @@ class LabRunner:
 
         # Check out notebooks, and set up git-lfs
         self._setup_git()
-
-        # Clear EUPS cache
-        self._cmd.run("eups", "admin", "clearCache")
 
         # Decide between interactive and noninteractive start, do
         # things that change between those two, and launch the Lab
@@ -109,6 +91,30 @@ class LabRunner:
         # the external URL and the setting.
         ext_url = self._env["EXTERNAL_INSTANCE_URL"]
         return f"{ext_url.strip('/')}/{setting.lstrip('/')}"
+
+    #
+    #
+    #
+    def _relocate_user_environment_if_requested(self) -> None:
+        if not self._env.get("RESET_USER_ENV", ""):
+            return
+        self._logger.debug("User environment relocation requested")
+        now = datetime.datetime.now(datetime.UTC).strftime("%Y%m%d%H%M%S")
+        reloc = self._home / f".user_env.{now}"
+        for candidate in ("cache", "conda", "eups", "local", "jupyter"):
+            c_path = self._home / f".{candidate}"
+            if c_path.is_dir():
+                if not reloc.is_dir():
+                    reloc.mkdir()
+                tgt = reloc / candidate
+                self._logger.debug(f"Moving {c_path.name} to {tgt.name}")
+                shutil.move(c_path, tgt)
+        u_setups = self._home / "notebooks" / ".user_setups"
+        if u_setups.is_file():
+            tgt = reloc / "notebooks" / "user_setups"
+            tgt.parent.mkdir()
+            self._logger.debug(f"Moving {u_setups.name} to {tgt}")
+            shutil.move(u_setups, tgt)
 
     #
     # Next up, a big block of setting up our subprocess environment.
@@ -334,7 +340,7 @@ class LabRunner:
             if not pdir.is_dir():
                 pdir.mkdir(parents=True)
             user_profile.write_bytes(
-                (TOP_DIR_PATH / "jupyterlab" / "20-logging.py").read_bytes()
+                (JUPYTERLAB_PATH / "etc" / "20-logging.py").read_bytes()
             )
 
     def _copy_dircolors(self) -> None:
@@ -538,6 +544,9 @@ class LabRunner:
         return False
 
     def _launch(self) -> None:
+        # We're about to start the lab: set the flag saying we're running
+        # inside the lab.  It's used by shell startup.
+        self._env["RUNNING_INSIDE_JUPYTERLAB"] = "TRUE"
         if bool(self._env.get("NONINTERACTIVE", "")):
             self._start_noninteractive()
             # We exec a lab; control never returns here
@@ -581,9 +590,7 @@ class LabRunner:
         self._logger.debug("Updating access token")
         tokfile = self._home / ".access_token"
         tokfile.unlink(missing_ok=True)
-        ctr_token = (
-            TOP_DIR_PATH / "software" / "jupyterlab" / "secrets" / "token"
-        )
+        ctr_token = JUPYTERLAB_PATH / "secrets" / "token"
         if ctr_token.exists():
             self._logger.debug(f"Symlinking {tokfile!s}->{ctr_token!s}")
             tokfile.symlink_to(ctr_token)
@@ -651,6 +658,8 @@ class LabRunner:
         ]
         cmd.extend(self._set_timeout_variables())
         self._logger.debug("Command to run:", command=cmd)
+        # Set environment variable to indicate we are inside JupyterLab
+        # (we want the shell to source loadLSST.bash once we are)
         if self._debug:
             # Maybe we want to parameterize these?
             retries = 10
