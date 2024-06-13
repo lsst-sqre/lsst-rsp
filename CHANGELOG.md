@@ -6,6 +6,14 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+##  (2024-06-13)
+
+### New features
+
+- `RESET_USER_ENV` now processed inside lsst.rsp.startup
+
+- Add utility functions to get values that were constants in the single-Python model but now are not.
+
 <a id='changelog-0.5.4'></a>
 ## 0.5.4 (2024-05-09)
 
