@@ -11,6 +11,7 @@ import pytest
 import symbolicmode
 
 import lsst.rsp
+from lsst.rsp import get_jupyterlab_config_dir, get_runtime_mounts_dir
 from lsst.rsp.startup.services.labrunner import LabRunner
 
 
@@ -147,7 +148,7 @@ def test_set_butler_credential_vars(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.usefixtures("_rsp_env")
 def test_create_credential_dir(monkeypatch: pytest.MonkeyPatch) -> None:
-    secret_dir = lsst.rsp.startup.constants.JUPYTERLAB_PATH / "secrets"
+    secret_dir = get_runtime_mounts_dir() / "secrets"
     monkeypatch.setenv(
         "AWS_SHARED_CREDENTIALS_FILE", str(secret_dir / "aws-credentials.ini")
     )
@@ -167,7 +168,7 @@ def test_create_credential_dir(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.usefixtures("_rsp_env")
 def test_copy_butler_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
-    secret_dir = lsst.rsp.startup.constants.JUPYTERLAB_PATH / "secrets"
+    secret_dir = get_runtime_mounts_dir() / "secrets"
     monkeypatch.setenv(
         "AWS_SHARED_CREDENTIALS_FILE", str(secret_dir / "aws-credentials.ini")
     )
@@ -216,9 +217,7 @@ def test_copy_logging_profile(monkeypatch: pytest.MonkeyPatch) -> None:
     lr._copy_logging_profile()
     assert pfile.exists()
     h_contents = pfile.read_text()
-    sfile = (
-        lsst.rsp.startup.constants.JUPYTERLAB_PATH / "etc" / "20-logging.py"
-    )
+    sfile = get_jupyterlab_config_dir() / "etc" / "20-logging.py"
     assert sfile.exists()
     s_contents = sfile.read_text()
     assert s_contents == h_contents
@@ -350,7 +349,12 @@ def test_manage_access_token(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DEBUG", "1")
     token = "token-of-esteem"
     monkeypatch.setenv("ACCESS_TOKEN", token)
-    ctr_file = lsst.rsp.startup.constants.JUPYTERLAB_PATH / "secrets" / "token"
+    ctr_file = get_runtime_mounts_dir() / "secrets" / "token"
+    # Save the token
+    assert ctr_file.exists()
+    save_token = ctr_file.read_text()
+    # Remove the token file
+    ctr_file.unlink()
     assert not ctr_file.exists()
     lr = LabRunner()
     tfile = lr._home / ".access_token"
@@ -366,5 +370,8 @@ def test_manage_access_token(monkeypatch: pytest.MonkeyPatch) -> None:
     lr._manage_access_token()
     assert tfile.exists()
     assert tfile.read_text() == token
+    # Remove the rewritten saved file and replace with saved token.
     ctr_file.unlink()
     assert not ctr_file.exists()
+    ctr_file.write_text(save_token)
+    assert ctr_file.exists()

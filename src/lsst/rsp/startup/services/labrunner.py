@@ -18,13 +18,16 @@ from urllib.parse import urlparse
 import structlog
 import symbolicmode
 
-from ... import get_access_token, get_digest
+from ... import (
+    get_access_token,
+    get_digest,
+    get_jupyterlab_config_dir,
+    get_runtime_mounts_dir,
+)
 from ..constants import (
     APP_NAME,
     ETC_PATH,
-    JUPYTERLAB_PATH,
     MAX_NUMBER_OUTPUTS,
-    NONINTERACTIVE_CONFIG_PATH,
     PREVIOUS_LOGGING_CHECKSUMS,
 )
 from ..models.noninteractive import NonInteractiveExecutor
@@ -339,8 +342,9 @@ class LabRunner:
             pdir = user_profile.parent
             if not pdir.is_dir():
                 pdir.mkdir(parents=True)
+            jl_path = get_jupyterlab_config_dir()
             user_profile.write_bytes(
-                (JUPYTERLAB_PATH / "etc" / "20-logging.py").read_bytes()
+                (jl_path / "etc" / "20-logging.py").read_bytes()
             )
 
     def _copy_dircolors(self) -> None:
@@ -357,7 +361,8 @@ class LabRunner:
         self._logger.debug("Copying files from /etc/skel if they don't exist")
         etc_skel = ETC_PATH / "skel"
         # alas, Path.walk() requires Python 3.12, which isn't in the
-        # stack containers yet.
+        # stack containers yet.  Once the Lab/stack split is finalized,
+        # we can make this simpler.
         contents = os.walk(etc_skel)
         #
         # We assume that if the file exists at all, we should leave it alone.
@@ -590,7 +595,7 @@ class LabRunner:
         self._logger.debug("Updating access token")
         tokfile = self._home / ".access_token"
         tokfile.unlink(missing_ok=True)
-        ctr_token = JUPYTERLAB_PATH / "secrets" / "token"
+        ctr_token = get_runtime_mounts_dir() / "secrets" / "token"
         if ctr_token.exists():
             self._logger.debug(f"Symlinking {tokfile!s}->{ctr_token!s}")
             tokfile.symlink_to(ctr_token)
@@ -607,9 +612,13 @@ class LabRunner:
             self._logger.debug("Could not determine access token")
 
     def _start_noninteractive(self) -> None:
-        launcher = NonInteractiveExecutor.from_config(
-            NONINTERACTIVE_CONFIG_PATH
+        config_path = (
+            get_runtime_mounts_dir()
+            / "noninteractive"
+            / "command"
+            / "command.json"
         )
+        launcher = NonInteractiveExecutor.from_config(config_path)
         launcher.execute(env=self._env)
 
     def _set_timeout_variables(self) -> list[str]:

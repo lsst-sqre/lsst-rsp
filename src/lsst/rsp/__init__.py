@@ -16,8 +16,10 @@ from .utils import (
     get_access_token,
     get_digest,
     get_hostname,
+    get_jupyterlab_config_dir,
     get_node,
     get_pod,
+    get_runtime_mounts_dir,
 )
 
 __version__: str
@@ -40,8 +42,10 @@ __all__ = [
     "get_catalog",
     "get_datalink_result",
     "get_digest",
+    "get_jupyterlab_config_dir",
     "get_node",
     "get_pod",
+    "get_runtime_mounts_dir",
     "get_tap_service",
     "get_siav2_service",
     "get_obstap_service",

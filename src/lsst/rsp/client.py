@@ -1,8 +1,8 @@
 """Client for other services running in the same RSP instance."""
 
-from pathlib import Path
-
 import httpx
+
+from .utils import get_access_token, get_runtime_mounts_dir
 
 
 class RSPClient(httpx.AsyncClient):
@@ -15,10 +15,9 @@ class RSPClient(httpx.AsyncClient):
     def __init__(
         self,
         service_endpoint: str,
-        *,
-        jupyterlab_dir: Path = Path("/opt/lsst/software/jupyterlab"),
     ) -> None:
-        token = (jupyterlab_dir / "secrets" / "token").read_text().strip()
+        token = get_access_token()
+        jupyterlab_dir = get_runtime_mounts_dir()
         instance_url = (
             (jupyterlab_dir / "environment" / "EXTERNAL_INSTANCE_URL")
             .read_text()
