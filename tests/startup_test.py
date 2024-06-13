@@ -11,8 +11,8 @@ import pytest
 import symbolicmode
 
 import lsst.rsp
-from lsst.rsp import get_jupyterlab_config_dir, get_runtime_mounts_dir
 from lsst.rsp.startup.services.labrunner import LabRunner
+from lsst.rsp.utils import get_jupyterlab_config_dir, get_runtime_mounts_dir
 
 
 @pytest.mark.usefixtures("_rsp_env")

@@ -18,12 +18,8 @@ from urllib.parse import urlparse
 import structlog
 import symbolicmode
 
-from ... import (
-    get_access_token,
-    get_digest,
-    get_jupyterlab_config_dir,
-    get_runtime_mounts_dir,
-)
+from ... import get_access_token, get_digest
+from ...utils import get_jupyterlab_config_dir, get_runtime_mounts_dir
 from ..constants import (
     APP_NAME,
     ETC_PATH,
