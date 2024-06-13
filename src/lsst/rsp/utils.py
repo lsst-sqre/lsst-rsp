@@ -136,6 +136,44 @@ def get_digest() -> str:
     return spec[hash_pos + len(hash_marker) :]
 
 
+def get_jupyterlab_config_dir() -> Path:
+    """Return the directory where Jupyterlab configuration is stored.
+    For single-python images, this will be `/opt/lsst/software/jupyterlab`.
+
+    For images with split stack and Jupyterlab Pythons, it will be the
+    value of `JUPYTERLAB_CONFIG_DIR`.
+
+    Returns
+    -------
+    pathlib.Path
+        Location where Jupyterlab configuration is stored.
+    """
+    return Path(
+        os.environ.get(
+            "JUPYTERLAB_CONFIG_DIR", "/opt/lsst/software/jupyterlab"
+        )
+    )
+
+
+def get_runtime_mounts_dir() -> Path:
+    """Return the directory where Nublado runtime info is mounted.  For
+    single-python images, this will be `/opt/lsst/software/jupyterlab`.
+
+    For images with split stack and Jupyterlab Pythons, it will be the
+    value of `NUBLADO_RUNTIME_MOUNTS_DIR`.
+
+    Returns
+    -------
+    pathlib.Path
+        Location where the Nublado runtime information is mounted.
+    """
+    return Path(
+        os.environ.get(
+            "NUBLADO_RUNTIME_MOUNTS_DIR", "/opt/lsst/software/jupyterlab"
+        )
+    )
+
+
 def get_access_token(
     tokenfile: str | Path | None = None, log: Any | None = None
 ) -> str:
@@ -147,14 +185,14 @@ def get_access_token(
     was started.  Return the empty string if the token cannot be determined.
     """
     if tokenfile:
-        return Path(tokenfile).read_text()
-    base_dir = Path("/opt/lsst/software/jupyterlab")
+        return Path(tokenfile).read_text().strip()
+    base_dir = get_runtime_mounts_dir()
     for candidate in (
         base_dir / "secrets" / "token",
         base_dir / "environment" / "ACCESS_TOKEN",
     ):
         with suppress(FileNotFoundError):
-            return candidate.read_text()
+            return candidate.read_text().strip()
 
     # If we got here, we couldn't find a file. Return the environment variable
     # if set, otherwise the empty string.

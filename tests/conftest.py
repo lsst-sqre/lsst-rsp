@@ -17,29 +17,29 @@ def _rsp_paths(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     # For each of these, we want to cover both the "from ..constants import"
     # and the "import lsst.rsp.constants" case.
     with patch(
-        "lsst.rsp.startup.services.labrunner.TOP_DIR_PATH",
-        (Path(__file__).parent / "support" / "files" / "stack_top"),
+        "lsst.rsp.startup.services.labrunner.ETC_PATH",
+        (Path(__file__).parent / "support" / "files" / "etc"),
     ):
         with patch(
-            "lsst.rsp.startup.constants.TOP_DIR_PATH",
-            (Path(__file__).parent / "support" / "files" / "stack_top"),
+            "lsst.rsp.startup.constants.ETC_PATH",
+            (Path(__file__).parent / "support" / "files" / "etc"),
         ):
-            with patch(
-                "lsst.rsp.startup.services.labrunner.ETC_PATH",
-                (Path(__file__).parent / "support" / "files" / "etc"),
-            ):
-                with patch(
-                    "lsst.rsp.startup.constants.ETC_PATH",
-                    (Path(__file__).parent / "support" / "files" / "etc"),
-                ):
-                    yield
+            yield
 
 
 @pytest.fixture
 def _rsp_env(
     _rsp_paths: None, monkeypatch: pytest.MonkeyPatch
 ) -> Iterator[None]:
-    template = Path(__file__).parent / "support" / "files" / "homedir"
+    file_dir = Path(__file__).parent / "support" / "files"
+    template = file_dir / "homedir"
+    monkeypatch.setenv(
+        "NUBLADO_RUNTIME_MOUNTS_DIR", str(file_dir / "etc" / "nublado")
+    )
+    monkeypatch.setenv(
+        "JUPYTERLAB_CONFIG_DIR",
+        str(file_dir / "jupyterlab"),
+    )
     with TemporaryDirectory() as homedir:
         monkeypatch.setenv("HOME", homedir)
         monkeypatch.setenv("USER", "hambone")
