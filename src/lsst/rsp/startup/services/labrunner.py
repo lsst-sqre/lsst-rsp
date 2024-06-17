@@ -339,9 +339,14 @@ class LabRunner:
             if not pdir.is_dir():
                 pdir.mkdir(parents=True)
             jl_path = get_jupyterlab_config_dir()
-            user_profile.write_bytes(
-                (jl_path / "etc" / "20-logging.py").read_bytes()
-            )
+            srcfile = jl_path / "etc" / "20-logging.py"
+            # Location changed with two-python container.  Try each.
+            if not srcfile.is_file():
+                srcfile = jl_path / "20-logging.py"
+            if not srcfile.is_file():
+                self._logger.warning("Could not find source user log profile.")
+                return
+            user_profile.write_bytes(srcfile.read_bytes())
 
     def _copy_dircolors(self) -> None:
         self._logger.debug("Copying dircolors if needed")
