@@ -6,6 +6,12 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+##  (2024-06-17)
+
+### Bug fixes
+
+- In two-python model, relative location of logging source changed; accomodate either.
+
 ##  (2024-06-13)
 
 ### New features
