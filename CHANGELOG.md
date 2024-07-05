@@ -21,6 +21,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 - Handle `RESET_USER_ENV` inside `lsst.rsp.startup`.
 - Add utility functions to get values that were constants in the single-Python model but now are not.
 
+<a id='changelog-0.5.5'></a>
+## 0.5.5 (2024-05-09)
+
+### Backward-incompatible changes
+
+- Stop forcing the value of `FIREFLY_HTML`, since newer versions of the Firefly plugin do not want it to be set. It must be set in the Nublado configuration if needed.
+
 <a id='changelog-0.5.4'></a>
 ## 0.5.4 (2024-05-09)
 
