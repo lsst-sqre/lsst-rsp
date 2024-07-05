@@ -6,18 +6,19 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
-##  (2024-06-17)
+<a id='changelog-0.6.1'></a>
+## 0.6.1 (2024-06-17)
 
 ### Bug fixes
 
-- In two-python model, relative location of logging source changed; accomodate either.
+- Allow for the relative location of the logging source used in the two-Python model.
 
-##  (2024-06-13)
+<a id='changelog-0.6.0'></a>
+## 0.6.0 (2024-06-13)
 
 ### New features
 
-- `RESET_USER_ENV` now processed inside lsst.rsp.startup
-
+- Handle `RESET_USER_ENV` inside `lsst.rsp.startup`.
 - Add utility functions to get values that were constants in the single-Python model but now are not.
 
 <a id='changelog-0.5.4'></a>
@@ -25,18 +26,18 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 ### Bug fixes
 
-- implement mkdir of logging startup parent correctly
+- Fix creation of the parent directory for the logging configuration.
 
 <a id='changelog-0.5.3'></a>
 ## 0.5.3 (2024-05-09)
 
 ### New features
 
-- Add RSPClient, a configured HTTP client for services in the same RSP instance.
+- Add `RSPClient`, a configured HTTP client for services in the same RSP instance.
 
 ### Bug fixes
 
-- If the path to the logging profile directory doesn't exist, create it.
+- Create the path to the logging profile directory if it doesn't exist.
 
 <a id='changelog-0.5.2'></a>
 ## 0.5.2 (2024-04-22)
@@ -57,7 +58,7 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 ### New features
 
-- Add a lsst.rsp.startup module and `launch-rubin-jupyterlab` entry point to replace most of the `runlab.sh` script in sciplat-lab. This handles startup and configuration of the Rubin-customized JupyterLab.
+- Add an `lsst.rsp.startup` module and `launch-rubin-jupyterlab` entry point to replace most of the `runlab.sh` script in sciplat-lab. This handles startup and configuration of the Rubin-customized JupyterLab.
 
 <a id='changelog-0.4.3'></a>
 ## 0.4.3 (2024-03-22)
