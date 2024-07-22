@@ -65,33 +65,13 @@ def get_service_url(name: str, env_name: str | None = None) -> str:
 
 def get_pyvo_auth() -> pyvo.auth.authsession.AuthSession | None:
     """Create a PyVO-compatible auth object."""
-    tap_url = get_service_url("tap")
-    obstap_url = get_service_url("obstap")
-    ssotap_url = get_service_url("ssotap")
-    siav2_url = get_service_url("siav2")
-    s = requests.Session()
     tok = get_access_token()
     if not tok:
         return None
+    s = requests.Session()
     s.headers["Authorization"] = "Bearer " + tok
     auth = pyvo.auth.authsession.AuthSession()
-    auth.credentials.set("lsst-token", s)
-    auth.add_security_method_for_url(get_service_url("cutout"), "lsst-token")
-    auth.add_security_method_for_url(get_service_url("datalink"), "lsst-token")
-    auth.add_security_method_for_url(siav2_url, "lsst-token")
-    auth.add_security_method_for_url(siav2_url + "/query", "lsst-token")
-    auth.add_security_method_for_url(tap_url, "lsst-token")
-    auth.add_security_method_for_url(tap_url + "/sync", "lsst-token")
-    auth.add_security_method_for_url(tap_url + "/async", "lsst-token")
-    auth.add_security_method_for_url(tap_url + "/tables", "lsst-token")
-    auth.add_security_method_for_url(obstap_url, "lsst-token")
-    auth.add_security_method_for_url(obstap_url + "/sync", "lsst-token")
-    auth.add_security_method_for_url(obstap_url + "/async", "lsst-token")
-    auth.add_security_method_for_url(obstap_url + "/tables", "lsst-token")
-    auth.add_security_method_for_url(ssotap_url, "lsst-token")
-    auth.add_security_method_for_url(ssotap_url + "/sync", "lsst-token")
-    auth.add_security_method_for_url(ssotap_url + "/async", "lsst-token")
-    auth.add_security_method_for_url(ssotap_url + "/tables", "lsst-token")
+    auth.credentials.set("ivo://ivoa.net/sso#cookie", s)
     return auth
 
 
