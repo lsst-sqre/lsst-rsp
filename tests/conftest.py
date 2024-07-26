@@ -1,5 +1,6 @@
 """Pytest configuration and fixtures."""
 
+import contextlib
 import os
 from collections.abc import Iterator
 from pathlib import Path
@@ -24,7 +25,15 @@ def _rsp_paths(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
             "lsst.rsp.startup.constants.ETC_PATH",
             (Path(__file__).parent / "support" / "files" / "etc"),
         ):
-            yield
+            with patch(
+                "lsst.rsp.startup.services.labrunner.SCRATCH_PATH",
+                (Path(__file__).parent / "support" / "files" / "scratch"),
+            ):
+                with patch(
+                    "lsst.rsp.startup.constants.SCRATCH_PATH",
+                    (Path(__file__).parent / "support" / "files" / "scratch"),
+                ):
+                    yield
 
 
 @pytest.fixture
@@ -40,6 +49,8 @@ def _rsp_env(
         "JUPYTERLAB_CONFIG_DIR",
         str(file_dir / "jupyterlab"),
     )
+    with contextlib.suppress(KeyError):
+        monkeypatch.delenv("TMPDIR")
     with TemporaryDirectory() as homedir:
         monkeypatch.setenv("HOME", homedir)
         monkeypatch.setenv("USER", "hambone")

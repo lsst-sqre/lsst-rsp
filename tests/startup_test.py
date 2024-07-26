@@ -6,6 +6,7 @@ import os
 import shutil
 from collections.abc import Iterable
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import symbolicmode
@@ -31,6 +32,42 @@ def test_debug_object(monkeypatch: pytest.MonkeyPatch) -> None:
 #
 # Environment methods
 #
+
+
+@pytest.mark.usefixtures("_rsp_env")
+def test_set_tmpdir(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Happy path.
+    lr = LabRunner()
+    lr._set_tmpdir_if_scratch_available()
+    assert lr._env["TMPDIR"].endswith("/scratch/hambone/tmp")
+    # Exists, but it's not a directory
+    scratch_path = Path(lr._env["TMPDIR"])
+    scratch_path.rmdir()
+    scratch_path.touch()
+    lr = LabRunner()
+    lr._set_tmpdir_if_scratch_available()
+    assert "TMPDIR" not in lr._env
+    # Put it back the way it was
+    scratch_path.unlink()
+    scratch_path.mkdir()
+    # Pre-set TMPDIR.
+    monkeypatch.setenv("TMPDIR", "/preset")
+    lr = LabRunner()
+    lr._set_tmpdir_if_scratch_available()
+    assert lr._env["TMPDIR"] == "/preset"
+    monkeypatch.delenv("TMPDIR")
+    # Can't write SCRATCH_DIR
+    with patch(
+        "lsst.rsp.startup.services.labrunner.SCRATCH_PATH",
+        (Path("/nonexistent") / "scratch"),
+    ):
+        with patch(
+            "lsst.rsp.startup.constants.SCRATCH_PATH",
+            (Path("nonexistent") / "scratch"),
+        ):
+            lr = LabRunner()
+            lr._set_tmpdir_if_scratch_available()
+            assert "TMPDIR" not in lr._env
 
 
 @pytest.mark.usefixtures("_rsp_env")
