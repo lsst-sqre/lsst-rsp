@@ -25,6 +25,7 @@ from ..constants import (
     ETC_PATH,
     MAX_NUMBER_OUTPUTS,
     PREVIOUS_LOGGING_CHECKSUMS,
+    SCRATCH_PATH,
 )
 from ..models.noninteractive import NonInteractiveExecutor
 from ..storage.command import Command
@@ -91,9 +92,6 @@ class LabRunner:
         ext_url = self._env["EXTERNAL_INSTANCE_URL"]
         return f"{ext_url.strip('/')}/{setting.lstrip('/')}"
 
-    #
-    #
-    #
     def _relocate_user_environment_if_requested(self) -> None:
         if not self._env.get("RESET_USER_ENV", ""):
             return
@@ -121,6 +119,7 @@ class LabRunner:
     def _configure_env(self) -> None:
         self._logger.debug("Configuring environment for JupyterLab process")
         self._set_user()
+        self._set_tmpdir_if_scratch_available()
         self._set_cpu_variables()
         self._set_image_digest()
         self._expand_panda_tilde()
@@ -135,6 +134,40 @@ class LabRunner:
         user = self._env.get("USER", "")
         if not user:
             self._env["USER"] = pwd.getpwuid(os.getuid()).pw_name
+
+    def _set_tmpdir_if_scratch_available(self) -> None:
+        # This is very Rubin-specific.  We generally have a large
+        # world-writeable filesystem out in SCRATCH_PATH (/scratch).
+        # Assuming that TMPDIR is not already set (e.g. by the spawner),
+        # we will try to create <SCRATCH_PATH>/<user>/tmp and ensure it is a
+        # writeable directory, and if it is, TMPDIR will be repointed to it.
+        # This will then reduce our ephemeral storage issues, which have
+        # caused mass pod eviction and destruction of the prepull cache.
+        #
+        # In our tests at the IDF, on a 2CPU/8GiB "Medium", TMPDIR on
+        # /scratch (NFS) is about 15% slower than on local ephemeral storage.
+        self._logger.debug(f"Resetting TMPDIR if {SCRATCH_PATH} available")
+        user = self._env["USER"]  # We know it's set now
+        tmpdir = self._env.get("TMPDIR", "")
+        if tmpdir:
+            self._logger.debug(f"Not setting TMPDIR: already set to {tmpdir}")
+            return
+        if not SCRATCH_PATH.is_dir():
+            self._logger.debug(
+                f"{SCRATCH_PATH} is not a directory.  Not setting TMPDIR."
+            )
+        user_scratch = SCRATCH_PATH / user / "tmp"
+        try:
+            user_scratch.mkdir(parents=True, exist_ok=True)
+        except (OSError, FileExistsError) as exc:
+            self._logger.warning(
+                f"Could not create TMPDIR at {user_scratch!s}: {exc}"
+            )
+            return
+        if not os.access(user_scratch, os.W_OK):
+            self._logger.warning(f"Unable to write to {user_scratch}")
+            return
+        self._env["TMPDIR"] = str(user_scratch)
 
     def _set_cpu_variables(self) -> None:
         self._logger.debug("Setting CPU threading variables")
