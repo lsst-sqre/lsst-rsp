@@ -71,6 +71,48 @@ def test_set_tmpdir(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.usefixtures("_rsp_env")
+def test_set_butler_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Happy path.
+    lr = LabRunner()
+    lr._set_tmpdir_if_scratch_available()
+    lr._set_butler_cache()
+    assert lr._env["DAF_BUTLER_CACHE_DIRECTORY"].endswith(
+        "/scratch/hambone/tmp/butler_cache"
+    )
+    # Exists, but it's not a directory
+    dbc = Path(lr._env["DAF_BUTLER_CACHE_DIRECTORY"])
+    dbc.rmdir()
+    dbc.touch()
+    lr = LabRunner()
+    lr._set_tmpdir_if_scratch_available()
+    lr._set_butler_cache()
+    assert "DAF_BUTLER_CACHE_DIRECTORY" not in lr._env
+    # Put it back the way it was
+    dbc.unlink()
+    # Pre-set DAF_BUTLER_CACHE_DIR.
+    monkeypatch.setenv("DAF_BUTLER_CACHE_DIRECTORY", "/preset")
+    lr = LabRunner()
+    lr._set_butler_cache()
+    assert lr._env["DAF_BUTLER_CACHE_DIRECTORY"] == "/preset"
+    monkeypatch.delenv("DAF_BUTLER_CACHE_DIRECTORY")
+    # Pre-set TMPDIR so cache is not writeable
+    monkeypatch.setenv("TMPDIR", "/nonexistent")
+    lr = LabRunner()
+    lr._set_butler_cache()
+    assert "DAF_BUTLER_CACHE_DIRECTORY" not in lr._env
+    monkeypatch.delenv("TMPDIR")
+    # No TMPDIR set: should go under `/tmp`
+    lr = LabRunner()
+    lr._set_butler_cache()
+    e_dbcd = lr._env["DAF_BUTLER_CACHE_DIRECTORY"]
+    # Yes, we know that ruff doesn't like `/tmp`
+    # In any sane RSP environment, either we will have set TMPDIR, or
+    # /tmp will be on ephemeral storage.
+    assert e_dbcd == "/tmp/butler_cache"  # noqa: S108
+    Path(e_dbcd).rmdir()
+
+
+@pytest.mark.usefixtures("_rsp_env")
 def test_cpu_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     lr = LabRunner()
     lr._set_cpu_variables()

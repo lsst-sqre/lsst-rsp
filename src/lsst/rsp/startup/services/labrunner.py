@@ -120,6 +120,7 @@ class LabRunner:
         self._logger.debug("Configuring environment for JupyterLab process")
         self._set_user()
         self._set_tmpdir_if_scratch_available()
+        self._set_butler_cache()
         self._set_cpu_variables()
         self._set_image_digest()
         self._expand_panda_tilde()
@@ -168,6 +169,38 @@ class LabRunner:
             self._logger.warning(f"Unable to write to {user_scratch}")
             return
         self._env["TMPDIR"] = str(user_scratch)
+
+    def _set_butler_cache(self) -> None:
+        # This should be called *after* _set_tmpdir_if_scratch_available()
+        # at least for now.  We may eventually want to force it to local
+        # ephemeral storage and demand enough ephemeral storage to cover it
+        # (currently about 500MB).
+        #
+        # For now, though, let's set it to `butler_cache` inside `TMPDIR`
+        dbcd = self._env.get("DAF_BUTLER_CACHE_DIRECTORY", "")
+        if dbcd:
+            self._logger.debug(
+                f"Not setting DAF_BUTLER_CACHE_DIRECTORY: already set to"
+                f" {dbcd}"
+            )
+            return
+        # Yes, we know that ruff doesn't like `/tmp`
+        # In any sane RSP environment, either we will have set TMPDIR, or
+        # /tmp will be on ephemeral storage.
+        tmpdir = Path(self._env.get("TMPDIR", "/tmp"))  # noqa: S108
+        dbc = tmpdir / "butler_cache"
+        try:
+            dbc.mkdir(parents=True, exist_ok=True)
+        except (OSError, FileExistsError) as exc:
+            self._logger.warning(
+                f"Could not create DAF_BUTLER_CACHE_DIRECTORY at"
+                f" {dbc!s}: {exc}"
+            )
+            return
+        if not os.access(dbc, os.W_OK):
+            self._logger.warning(f"Unable to write to {dbc}")
+            return
+        self._env["DAF_BUTLER_CACHE_DIRECTORY"] = str(dbc)
 
     def _set_cpu_variables(self) -> None:
         self._logger.debug("Setting CPU threading variables")
