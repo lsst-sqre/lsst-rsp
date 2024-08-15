@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.6.3'></a>
+## 0.6.3 (2024-08-15)
+
+### New features
+
+- Conditionally set environment variable `DAF_BUTLER_CACHE_DIRECTORY`
+
 <a id='changelog-0.6.2'></a>
 ## 0.6.2 (2024-07-29)
 
