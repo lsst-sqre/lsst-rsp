@@ -136,9 +136,39 @@ class LabRunner:
         if not user:
             self._env["USER"] = pwd.getpwuid(os.getuid()).pw_name
 
+    def _check_user_scratch_subdir(self, path: Path) -> Path | None:
+        # This is very Rubin specific.  We generally have a large
+        # world-writable filesystem in SCRATCH_PATH (`/scratch`).
+        #
+        # Given a path we well test that SCRATCH_PATH/user/path can be
+        # created as a writable directory (or that it already exists
+        # as a writable directory).  If it can be (or is), we return the
+        # whole path, and if not, we return None.
+        if not SCRATCH_PATH.is_dir():
+            self._logger.debug(
+                # Debug only: not having /scratch is reasonable.
+                f"{SCRATCH_PATH} is not a directory."
+            )
+            return None
+        user = self._env.get("USER", "")
+        if not user:
+            self._logger.warning("Could not determine user from environment")
+            return None
+        user_scratch_path = SCRATCH_PATH / user / path
+        try:
+            user_scratch_path.mkdir(parents=True, exist_ok=True)
+        except (OSError, FileExistsError) as exc:
+            self._logger.warning(
+                f"Could not create directory at {user_scratch_path!s}: {exc}"
+            )
+            return None
+        if not os.access(user_scratch_path, os.W_OK):
+            self._logger.warning(f"Unable to write to {user_scratch_path!s}")
+            return None
+        self._logger.debug(f"Using user scratch path {user_scratch_path!s}")
+        return user_scratch_path
+
     def _set_tmpdir_if_scratch_available(self) -> None:
-        # This is very Rubin-specific.  We generally have a large
-        # world-writeable filesystem out in SCRATCH_PATH (/scratch).
         # Assuming that TMPDIR is not already set (e.g. by the spawner),
         # we will try to create <SCRATCH_PATH>/<user>/tmp and ensure it is a
         # writeable directory, and if it is, TMPDIR will be repointed to it.
@@ -148,59 +178,39 @@ class LabRunner:
         # In our tests at the IDF, on a 2CPU/8GiB "Medium", TMPDIR on
         # /scratch (NFS) is about 15% slower than on local ephemeral storage.
         self._logger.debug(f"Resetting TMPDIR if {SCRATCH_PATH} available")
-        user = self._env["USER"]  # We know it's set now
         tmpdir = self._env.get("TMPDIR", "")
         if tmpdir:
             self._logger.debug(f"Not setting TMPDIR: already set to {tmpdir}")
             return
-        if not SCRATCH_PATH.is_dir():
-            self._logger.debug(
-                f"{SCRATCH_PATH} is not a directory.  Not setting TMPDIR."
-            )
-        user_scratch = SCRATCH_PATH / user / "tmp"
-        try:
-            user_scratch.mkdir(parents=True, exist_ok=True)
-        except (OSError, FileExistsError) as exc:
-            self._logger.warning(
-                f"Could not create TMPDIR at {user_scratch!s}: {exc}"
-            )
-            return
-        if not os.access(user_scratch, os.W_OK):
-            self._logger.warning(f"Unable to write to {user_scratch}")
-            return
-        self._env["TMPDIR"] = str(user_scratch)
+        temp_path = self._check_user_scratch_subdir(Path("tmp"))
+        if temp_path:
+            self._env["TMPDIR"] = str(temp_path)
+            self._logger.debug(f"Set TMPDIR to {temp_path!s}")
+        else:
+            self._logger.debug("Did not set TMPDIR")
 
     def _set_butler_cache(self) -> None:
-        # This should be called *after* _set_tmpdir_if_scratch_available()
-        # at least for now.  We may eventually want to force it to local
-        # ephemeral storage and demand enough ephemeral storage to cover it
-        # (currently about 500MB).
-        #
-        # For now, though, let's set it to `butler_cache` inside `TMPDIR`
-        dbcd = self._env.get("DAF_BUTLER_CACHE_DIRECTORY", "")
+        # This is basically the same story as TMPDIR.
+        env_v = "DAF_BUTLER_CACHE_DIRECTORY"
+        dbcd = self._env.get(env_v, "")
         if dbcd:
             self._logger.debug(
                 f"Not setting DAF_BUTLER_CACHE_DIRECTORY: already set to"
                 f" {dbcd}"
             )
             return
-        # Yes, we know that ruff doesn't like `/tmp`
-        # In any sane RSP environment, either we will have set TMPDIR, or
-        # /tmp will be on ephemeral storage.
-        tmpdir = Path(self._env.get("TMPDIR", "/tmp"))  # noqa: S108
-        dbc = tmpdir / "butler_cache"
-        try:
-            dbc.mkdir(parents=True, exist_ok=True)
-        except (OSError, FileExistsError) as exc:
-            self._logger.warning(
-                f"Could not create DAF_BUTLER_CACHE_DIRECTORY at"
-                f" {dbc!s}: {exc}"
+        temp_path = self._check_user_scratch_subdir(Path("butler_cache"))
+        if temp_path:
+            self._env[env_v] = str(temp_path)
+            self._logger.debug(
+                f"Set DAF_BUTLER_CACHE_DIRECTORY to {temp_path!s}"
             )
             return
-        if not os.access(dbc, os.W_OK):
-            self._logger.warning(f"Unable to write to {dbc}")
-            return
-        self._env["DAF_BUTLER_CACHE_DIRECTORY"] = str(dbc)
+        # In any sane RSP environment, /tmp will not be shared (it will
+        # be either tmpfs or on ephemeral storage, and in any case not
+        # visible beyond its own pod), so we are not actually using a risky
+        # shared directory.
+        self._env[env_v] = "/tmp/butler_cache"
 
     def _set_cpu_variables(self) -> None:
         self._logger.debug("Setting CPU threading variables")
