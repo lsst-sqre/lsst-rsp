@@ -144,6 +144,11 @@ class LabRunner:
         # created as a writable directory (or that it already exists
         # as a writable directory).  If it can be (or is), we return the
         # whole path, and if not, we return None.
+        #
+        # This will only be readable by the user; they can chmod() it if
+        # they want to share, but for TMPDIR and DAF_BUTLER_CACHE_DIRECTORY
+        # they probably should not.  The mode will not be reset if the
+        # directory already exists and is writeable
         if not SCRATCH_PATH.is_dir():
             self._logger.debug(
                 # Debug only: not having /scratch is reasonable.
@@ -156,7 +161,7 @@ class LabRunner:
             return None
         user_scratch_path = SCRATCH_PATH / user / path
         try:
-            user_scratch_path.mkdir(parents=True, exist_ok=True)
+            user_scratch_path.mkdir(parents=True, exist_ok=True, mode=0o700)
         except (OSError, FileExistsError) as exc:
             self._logger.warning(
                 f"Could not create directory at {user_scratch_path!s}: {exc}"
