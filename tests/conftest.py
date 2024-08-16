@@ -25,15 +25,7 @@ def _rsp_paths(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
             "lsst.rsp.startup.constants.ETC_PATH",
             (Path(__file__).parent / "support" / "files" / "etc"),
         ):
-            with patch(
-                "lsst.rsp.startup.services.labrunner.SCRATCH_PATH",
-                (Path(__file__).parent / "support" / "files" / "scratch"),
-            ):
-                with patch(
-                    "lsst.rsp.startup.constants.SCRATCH_PATH",
-                    (Path(__file__).parent / "support" / "files" / "scratch"),
-                ):
-                    yield
+            yield
 
 
 @pytest.fixture
@@ -51,7 +43,11 @@ def _rsp_env(
     )
     with contextlib.suppress(KeyError):
         monkeypatch.delenv("TMPDIR")
-    with TemporaryDirectory() as homedir:
+        monkeypatch.delenv("DAF_BUTLER_CACHE_DIRECTORY")
+    with TemporaryDirectory() as fake_root:
+        t_home = Path(fake_root) / "home"
+        t_home.mkdir()
+        homedir = str(t_home)
         monkeypatch.setenv("HOME", homedir)
         monkeypatch.setenv("USER", "hambone")
         monkeypatch.setenv("JUPYTERHUB_BASE_URL", "/nb/")
@@ -61,7 +57,13 @@ def _rsp_env(
             dirs_exist_ok=True,
             symlinks=True,
         )
-        yield
+        t_scratch = Path(fake_root) / "scratch"
+        t_scratch.mkdir()
+        with patch(
+            "lsst.rsp.startup.services.labrunner.SCRATCH_PATH", t_scratch
+        ):
+            with patch("lsst.rsp.startup.constants.SCRATCH_PATH", t_scratch):
+                yield
 
 
 @pytest.fixture

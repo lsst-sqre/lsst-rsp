@@ -225,6 +225,12 @@ select = ["ALL"]
 "src/lsst/rsp/startup/**" = [
     "S606",    # Sometimes we really mean os.execve(), not subprocess.run()
 ]
+"src/lsst/rsp/startup/services/labrunner.py" = [
+    "S108",    # We really do mean explicitly `/tmp`
+]
+"tests/startup_test.py" = [
+    "S108",    # We really do mean explicitly `/tmp`
+]
 [tool.ruff.lint.isort]
 known-first-party = ["lsst.rsp", "tests"]
 split-on-trailing-comma = false
