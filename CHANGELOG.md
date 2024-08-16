@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.6.4'></a>
+## 0.6.4 (2024-08-16)
+
+### Other changes
+
+- Decouple `DAF_BUTLER_CACHE_DIRECTORY` from `TMPDIR`
+
 <a id='changelog-0.6.3'></a>
 ## 0.6.3 (2024-08-15)
 
