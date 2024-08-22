@@ -785,9 +785,8 @@ class LabRunner:
             "--WebPDFExporter.allow_chromium_download=True",
             "--MappingKernelManager.default_kernel_name=lsst",
             "--LabApp.check_for_updates_class=jupyterlab.NeverCheckForUpdate",
-            "--NotebookApp.base_url=nb",
-            "--NotebookApp.default_url=lab",
         ]
+
         cmd.extend(self._set_timeout_variables())
         self._logger.debug("Command to run:", command=cmd)
         # Set environment variable to indicate we are inside JupyterLab
