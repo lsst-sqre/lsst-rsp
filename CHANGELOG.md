@@ -9,9 +9,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 <a id='changelog-0.6.4'></a>
 ## 0.6.4 (2024-08-16)
 
-### Other changes
+### New features
 
-- Decouple `DAF_BUTLER_CACHE_DIRECTORY` from `TMPDIR`
+- Set the default `DAF_BUTLER_CACHE_DIRECTORY` path to a sibling directory of the `TMPDIR` directory if moved into the scratch directory instead of using a subdirectory.
+
+### Bug fixes
+
+- When using a scratch directory as the root of directory of temporary files, set the mode on that directory to 0700 if it has to be created.
 
 <a id='changelog-0.6.3'></a>
 ## 0.6.3 (2024-08-15)
