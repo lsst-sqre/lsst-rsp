@@ -76,8 +76,8 @@ class LabRunner:
         # and writeable, things will go wrong here.
         self._copy_files_to_user_homedir()
 
-        # Check out notebooks, and set up git-lfs
-        self._setup_git()
+        # Set up git-lfs
+        self._setup_gitlfs()
 
         # Decide between interactive and noninteractive start, do
         # things that change between those two, and launch the Lab
@@ -473,93 +473,6 @@ class LabRunner:
                     self._logger.debug(f"Creating {current_dir / f_item!s}")
                     src_contents = src.read_bytes()
                     (current_dir / f_item).write_bytes(src_contents)
-
-    def _setup_git(self) -> None:
-        # Refresh standard notebooks
-        self._refresh_notebooks()
-        # Set up Git LFS
-        self._setup_gitlfs()
-
-    def _refresh_notebooks(self) -> None:
-        # Find the notebook specs.  I think we can ditch our fallbacks now.
-        self._logger.debug("Refreshing notebooks")
-        urls = self._env.get("AUTO_REPO_SPECS", "").split(",")
-        if not urls:
-            self._logger.debug("No repos listed in 'AUTO_REPO_SPECS'")
-            return
-        timeout = 30  # Probably don't need to parameterize it.
-        reloc_msg = ""
-        now = datetime.datetime.now(datetime.UTC).isoformat()
-        for url in urls:
-            try:
-                repo, branch = url.split("@", maxsplit=1)
-            except ValueError:
-                self._logger.warning(
-                    "Could not get repo/branch information from"
-                    f" '{self._env['AUTO_REPO_SPECS']}'"
-                )
-                return
-            repo_path = urlparse(repo).path
-            repo_name = Path(repo_path).name
-            if repo_name.endswith(".git"):
-                repo_name = repo_name[:-4]
-            dirname = self._home / "notebooks" / repo_name
-            if dirname.is_dir():
-                # We're going to make the simplifying assumption that the
-                # user owns the directory and is in the directory's group.
-                # If not, probably a lot else has already gone wrong.
-                can_write = dirname.stat().st_mode & 0o222
-                if can_write:
-                    self._logger.debug(f"'{dirname!s}' is writeable; moving")
-                    newname = Path(f"{dirname!s}.{now}")
-                    reloc_msg += f"* '{dirname!s}' -> '{newname!s}'\n"
-                    # We're also going to assume the user DOES have write
-                    # permission in the parent directory.  Again, if not,
-                    # terrible things probably already happened.
-                    dirname.rename(newname)
-                else:
-                    # If the repository exists and is not writeable, and has
-                    # the same last commit as the remote, then we don't
-                    # need to update it.
-                    if self._compare_local_and_remote(
-                        dirname, branch, timeout
-                    ):
-                        self._logger.debug(f"'{dirname!s}' is r/o and current")
-                        continue  # Up-to-date; we don't need to do anything
-                    # It's writeable or stale; re-clone.
-                    self._logger.debug(f"Need to remove '{dirname!s}'")
-                    symbolicmode.chmod(dirname, "u+w", recurse=True)
-                    shutil.rmtree(dirname)
-            # If the directory existed, it's gone now.
-            self._logger.debug(f"Cloning {repo}@{branch}")
-            proc = self._cmd.run(
-                "git",
-                "clone",
-                "--depth",
-                "1",
-                repo,
-                "-b",
-                branch,
-                str(dirname),
-                timeout=timeout,
-            )
-            if proc.returncode != 0:
-                self._logger.error("git clone failed", proc=proc)
-                return
-            symbolicmode.chmod(dirname, "a-w", recurse=True)
-        if reloc_msg:
-            hdr = (
-                "# Directory relocation\n\n"
-                "The following directories were writeable, and were moved:\n"
-                "\n"
-                "\n"
-            )
-            reloc_msg = hdr + reloc_msg
-            (self._home / "notebooks" / "00_README_RELOCATION.md").write_text(
-                reloc_msg
-            )
-
-        self._logger.debug("Refreshed notebooks")
 
     def _compare_local_and_remote(
         self, path: Path, branch: str, timeout: int
