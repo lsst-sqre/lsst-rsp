@@ -27,6 +27,7 @@ from ..constants import (
     PREVIOUS_LOGGING_CHECKSUMS,
     SCRATCH_PATH,
 )
+from ..exceptions import CommandTimedOutError
 from ..models.noninteractive import NonInteractiveExecutor
 from ..storage.command import Command
 from ..storage.logging import configure_logging
@@ -487,9 +488,37 @@ class LabRunner:
         if not urls:
             self._logger.debug("No repos listed in 'AUTO_REPO_SPECS'")
             return
-        timeout = 30  # Probably don't need to parameterize it.
+
+        try:
+            self._refresh_each_repo(urls)
+        except CommandTimedOutError:
+            # Experientially this means Github is inaccessible.
+            # Either it's down (this really does sometimes happen)
+            # or pod routing is messed up somehow.  If the latter
+            # we're probably doomed when we try to talk to the
+            # Hub to tell it we're alive, but maybe it's just
+            # resolution-of-external-names that failed or
+            # something.
+            #
+            # We want to give up at the first timeout rather than doing this
+            # within the loop, because we only have a 90-second budget
+            # across all of them, and if the command times out once, it
+            # probably will again in the immediate future.
+            #
+            # Anyway, bail out and go with what (if anything) we've
+            # already got.
+            self._logger.exception(
+                "git comparison of local and remote timed out"
+            )
+            return
+
+    def _refresh_each_repo(self, urls: list[str]) -> None:
+        timeout = 30  # Probably don't need to parameterize it.  The only
+        # place it should matter is in clone and ls-remote; rev-parse and
+        # config are both local and should never take more than milliseconds.
         reloc_msg = ""
         now = datetime.datetime.now(datetime.UTC).isoformat()
+
         for url in urls:
             try:
                 repo, branch = url.split("@", maxsplit=1)
@@ -521,17 +550,45 @@ class LabRunner:
                     # If the repository exists and is not writeable, and has
                     # the same last commit as the remote, then we don't
                     # need to update it.
+                    #
+                    # If this times out, it's a good bet that the clone would
+                    # too, so we should just give up and go with what we have.
                     if self._compare_local_and_remote(
                         dirname, branch, timeout
                     ):
                         self._logger.debug(f"'{dirname!s}' is r/o and current")
-                        continue  # Up-to-date; we don't need to do anything
+                        continue  # Up-to-date; no action required
                     # It's writeable or stale; re-clone.
                     self._logger.debug(f"Need to remove '{dirname!s}'")
                     symbolicmode.chmod(dirname, "u+w", recurse=True)
                     shutil.rmtree(dirname)
             # If the directory existed, it's gone now.
-            self._logger.debug(f"Cloning {repo}@{branch}")
+
+            # Let a timeout exception from the clone propagate up to the
+            # enclosing call, so we deal with it only once.  Probably rare
+            # because we got through the local-and-remote comparison.
+
+            self._clone_repo(repo, branch, dirname=dirname, timeout=timeout)
+
+        if reloc_msg:
+            hdr = (
+                "# Directory relocation\n\n"
+                "The following directories were writeable, and were moved:\n"
+                "\n"
+                "\n"
+            )
+            reloc_msg = hdr + reloc_msg
+            (self._home / "notebooks" / "00_README_RELOCATION.md").write_text(
+                reloc_msg
+            )
+
+        self._logger.debug("Refreshed notebooks")
+
+    def _clone_repo(
+        self, repo: str, branch: str, *, dirname: Path, timeout: float
+    ) -> None:
+        self._logger.debug(f"Cloning {repo}@{branch}")
+        try:
             proc = self._cmd.run(
                 "git",
                 "clone",
@@ -546,20 +603,10 @@ class LabRunner:
             if proc.returncode != 0:
                 self._logger.error("git clone failed", proc=proc)
                 return
-            symbolicmode.chmod(dirname, "a-w", recurse=True)
-        if reloc_msg:
-            hdr = (
-                "# Directory relocation\n\n"
-                "The following directories were writeable, and were moved:\n"
-                "\n"
-                "\n"
-            )
-            reloc_msg = hdr + reloc_msg
-            (self._home / "notebooks" / "00_README_RELOCATION.md").write_text(
-                reloc_msg
-            )
-
-        self._logger.debug("Refreshed notebooks")
+        except CommandTimedOutError:
+            self._logger.exception("git clone timed out", proc=proc)
+            return
+        symbolicmode.chmod(dirname, "a-w", recurse=True)
 
     def _compare_local_and_remote(
         self, path: Path, branch: str, timeout: int
@@ -599,8 +646,7 @@ class LabRunner:
             remote,
             timeout=timeout,
         )
-        ls_remote = rx.stdout.strip() if rx else None
-        lsr_lines = ls_remote.split("\n")
+        lsr_lines = rx.stdout.strip().split("\n") if rx else []
         remote_sha = None
         for line in lsr_lines:
             line.strip()

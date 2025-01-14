@@ -128,6 +128,7 @@ warn_unused_ignores = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
 # The python_files setting is not for test detection (pytest will pick up any
 # test files named *_test.py without this setting) but to enable special
 # assert processing in any non-test supporting files under tests.  We
