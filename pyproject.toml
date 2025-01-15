@@ -26,7 +26,7 @@ dependencies = [
     "Deprecated<2",
     "IPython<9",
     "pyvo>=1.5.0,<2",
-    "httpx<0.28",
+    "httpx<0.29",
     "structlog",  # Uses CalVer, not SemVer
     "symbolicmode<3",
 ]
