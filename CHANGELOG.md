@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.6.5'></a>
+## 0.6.5 (2025-01-15)
+
+### Other changes
+
+- If the auto notebook pulls from GitHub time out, log an error and keep going rather than crashing.
+
 <a id='changelog-0.6.4'></a>
 ## 0.6.4 (2024-08-16)
 
