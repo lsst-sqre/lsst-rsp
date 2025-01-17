@@ -69,6 +69,7 @@ def retrieve_query(query_url: str) -> pyvo.dal.AsyncTAPJob:
         warnings.simplefilter("ignore", category=UserWarning)
         return pyvo.dal.AsyncTAPJob(query_url, session=get_pyvo_auth())
 
+
 async def get_query_history(n: int | None = None) -> list[str]:
     """Retrieve last n query jobref ids.  If n is not specified, or n<1,
     retrieve all query jobref ids.
