@@ -29,6 +29,7 @@ dependencies = [
     "httpx<0.28",
     "structlog",  # Uses CalVer, not SemVer
     "symbolicmode<3",
+    "xmltodict"
 ]
 dynamic = ["version"]
 

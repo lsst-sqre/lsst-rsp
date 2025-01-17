@@ -5,6 +5,7 @@ from importlib.metadata import PackageNotFoundError, version
 from .catalog import (
     get_catalog,
     get_obstap_service,
+    get_query_history,
     get_tap_service,
     retrieve_query,
 )
@@ -41,6 +42,7 @@ __all__ = [
     "get_datalink_result",
     "get_digest",
     "get_node",
+    "get_query_history",
     "get_pod",
     "get_tap_service",
     "get_siav2_service",
