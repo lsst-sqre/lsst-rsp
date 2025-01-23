@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.6.6'></a>
+## 0.6.6 (2025-01-23)
+
+### Bug fixes
+
+- Pass in session as a keyword argument to initialization of TAP classes
+
 <a id='changelog-0.6.5'></a>
 ## 0.6.5 (2025-01-15)
 
