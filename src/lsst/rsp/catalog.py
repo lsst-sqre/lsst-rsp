@@ -51,7 +51,7 @@ def get_tap_service(*args: str) -> pyvo.dal.TAPService:
     # 81a50d7fd24428f17104a075bc0e1ac661ed6ea0/pyvo/utils/xml/elements.py#L418
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=UserWarning)
-        return pyvo.dal.TAPService(tap_url, get_pyvo_auth())
+        return pyvo.dal.TAPService(tap_url, session=get_pyvo_auth())
 
 
 def retrieve_query(query_url: str) -> pyvo.dal.AsyncTAPJob:
@@ -65,4 +65,4 @@ def retrieve_query(query_url: str) -> pyvo.dal.AsyncTAPJob:
     # 81a50d7fd24428f17104a075bc0e1ac661ed6ea0/pyvo/utils/xml/elements.py#L418
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=UserWarning)
-        return pyvo.dal.AsyncTAPJob(query_url, get_pyvo_auth())
+        return pyvo.dal.AsyncTAPJob(query_url, session=get_pyvo_auth())
