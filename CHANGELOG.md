@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.7.0'></a>
+## 0.7.0 (2025-01-27)
+
+### New features
+
+- added `get_query_history()` function
+
 <a id='changelog-0.6.6'></a>
 ## 0.6.6 (2025-01-23)
 
