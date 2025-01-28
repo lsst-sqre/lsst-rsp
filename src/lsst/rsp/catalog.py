@@ -81,10 +81,4 @@ async def get_query_history(n: int | None = None) -> list[str]:
     full_history_xml = await client.get("async", params=params)
     history_dict = xmltodict.parse(full_history_xml.text)
     joblist = history_dict["uws:jobs"]["uws:jobref"]
-    jobs: list[str] = []
-    for job in joblist:
-        for k, v in job.items():
-            if k == "@id":
-                jobs.append(v)
-                break
-    return jobs
+    return [job["@id"] for job in joblist if "@id" in job]
