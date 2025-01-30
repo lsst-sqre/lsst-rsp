@@ -772,19 +772,12 @@ class LabRunner:
     def _start(self) -> None:
         log_level = "DEBUG" if self._debug else "INFO"
         cmd = [
-            "python3",
-            "-s",
-            "-m",
-            "jupyter",
-            "labhub",
+            "jupyterhub-singleuser",
             "--ip=0.0.0.0",
             "--port=8888",
-            "--no-browser",
-            f"--notebook-dir={self._home!s}",
-            f"--hub-prefix={self._stash['jupyterhub_path']}",
-            f"--hub-host={self._stash['external_host']}",
             f"--log-level={log_level}",
             "--ContentsManager.allow_hidden=True",
+            f"--ContentsManager.root_dir={self._home}",
             "--FileContentsManager.hide_globs=[]",
             "--KernelSpecManager.ensure_native_kernel=False",
             "--QtExporter.enabled=False",
@@ -793,6 +786,7 @@ class LabRunner:
             "--MappingKernelManager.default_kernel_name=lsst",
             "--LabApp.check_for_updates_class=jupyterlab.NeverCheckForUpdate",
         ]
+
         cmd.extend(self._set_timeout_variables())
         self._logger.debug("Command to run:", command=cmd)
         # Set environment variable to indicate we are inside JupyterLab
