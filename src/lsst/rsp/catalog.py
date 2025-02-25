@@ -79,7 +79,9 @@ async def get_query_history(n: int | None = None) -> list[str]:
     if n and n > 0:
         params = {"last": f"{n}"}
     full_history_xml = await client.get("async", params=params)
-    history_dict = xmltodict.parse(full_history_xml.text)
+    history_dict = xmltodict.parse(
+        full_history_xml.text, force_list=("uws:jobref",)
+    )
     try:
         joblist = history_dict["uws:jobs"]["uws:jobref"]
     except KeyError:
