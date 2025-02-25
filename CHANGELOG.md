@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.7.1'></a>
+## 0.7.1 (2025-02-25)
+
+### Bug fixes
+
+- If there are no jobs in query history, return empty list instead of raising KeyError.
+
 <a id='changelog-0.7.0'></a>
 ## 0.7.0 (2025-01-27)
 
