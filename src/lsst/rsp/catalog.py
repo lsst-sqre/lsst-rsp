@@ -39,7 +39,7 @@ def get_tap_service(*args: str) -> pyvo.dal.TAPService:
     if database == "obstap":
         database = "live"
 
-    if database in ("live", "tap", "ssotap"):
+    if database in ("live", "tap", "ssotap", "consdbtap"):
         tap_url = get_service_url(database)
     else:
         raise ValueError(f"{database} is not a valid tap service")
