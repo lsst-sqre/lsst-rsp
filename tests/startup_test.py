@@ -4,12 +4,10 @@ import configparser
 import json
 import os
 import shutil
-from collections.abc import Iterable
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-import symbolicmode
 
 import lsst.rsp
 from lsst.rsp.startup.services.labrunner import LabRunner
@@ -203,6 +201,24 @@ def test_set_butler_credential_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     assert lr._env["ORIG_PGPASSFILE"] == "/etc/secret/pgpass"
 
 
+@pytest.mark.usefixtures("_rsp_env")
+def test_busted_homedir(monkeypatch: pytest.MonkeyPatch) -> None:
+    def out_of_space(lrobj: LabRunner, cachefile: Path) -> None:
+        raise OSError(122, "quota exceeded", str(cachefile))
+
+    monkeypatch.setattr(LabRunner, "_write_a_megabyte", out_of_space)
+    lr = LabRunner()
+
+    lr._test_for_space()
+
+    assert lr._broken
+    assert lr._env["ABNORMAL_STARTUP"] == "TRUE"
+    assert lr._env["ABNORMAL_STARTUP_ERRNO"] == "122"
+
+    lr._clear_abnormal_startup()
+    assert lr._broken is not True
+
+
 #
 # File manipulation tests
 #
@@ -335,42 +351,6 @@ def test_relocate_user_files(monkeypatch: pytest.MonkeyPatch) -> None:
     reloc = next(iter((lr._home).glob(".user_env.*")))
     assert (reloc / "local" / "foo").read_text() == "bar"
     assert (reloc / "notebooks" / "user_setups").read_text() == "#!/bin/sh\n"
-
-
-#
-# Git
-#
-
-
-@pytest.mark.usefixtures("_rsp_env")
-def test_refresh_notebooks(
-    monkeypatch: pytest.MonkeyPatch, git_repo: Path
-) -> None:
-    source_repo = git_repo
-    monkeypatch.setenv("AUTO_REPO_SPECS", f"file://{source_repo!s}@main")
-    lr = LabRunner()
-    repo = lr._home / "notebooks" / source_repo.name
-    assert not repo.exists()
-    lr._refresh_notebooks()
-    paths = (repo, repo / "README.md")
-    assert _is_readonly(paths)
-    lr._refresh_notebooks()
-    assert _is_readonly(paths)
-    for p in paths:
-        symbolicmode.chmod(p, "u+w")
-    assert not _is_readonly(paths)
-    lr._refresh_notebooks()
-    assert _is_readonly(paths)
-
-
-def _is_readonly(paths: Iterable[Path]) -> bool:
-    for p in paths:
-        assert p.exists()
-        mode = p.stat().st_mode
-        mask = 0o222
-        if mode & mask != 0:
-            return False
-    return True
 
 
 @pytest.mark.usefixtures("_rsp_env")

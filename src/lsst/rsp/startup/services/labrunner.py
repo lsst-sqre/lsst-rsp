@@ -9,14 +9,13 @@ import os
 import pwd
 import shutil
 import sys
+import time
 from pathlib import Path
 from subprocess import SubprocessError
-from time import sleep
 from typing import Any
 from urllib.parse import urlparse
 
 import structlog
-import symbolicmode
 
 from ... import get_access_token, get_digest
 from ...utils import get_jupyterlab_config_dir, get_runtime_mounts_dir
@@ -27,7 +26,6 @@ from ..constants import (
     PREVIOUS_LOGGING_CHECKSUMS,
     SCRATCH_PATH,
 )
-from ..exceptions import CommandTimedOutError
 from ..models.noninteractive import NonInteractiveExecutor
 from ..storage.command import Command
 from ..storage.logging import configure_logging
@@ -52,12 +50,13 @@ class LabRunner:
         self._debug = bool(self._env.get("DEBUG", ""))
         configure_logging(debug=self._debug)
         self._logger = structlog.get_logger(APP_NAME)
-        self._home = Path(self._env["HOME"])  # If unset, it's OK to die.
+        self._home = Path(self._env.get("HOME", "/tmp"))
         if "JUPYTERHUB_BASE_URL" not in self._env:
-            raise ValueError("'JUPYTERHUB_BASE_URL' must be set")
+            self._logger.error("'JUPYTERHUB_BASE_URL' must be set")
         self._user = ""
         self._stash: dict[str, str] = {}  # Used for settings we don't expose.
         self._cmd = Command(ignore_fail=True, logger=self._logger)
+        self._broken = False
 
     def go(self) -> None:
         """Start the user lab."""
@@ -66,23 +65,55 @@ class LabRunner:
         # bail them out on the fileserver end.  Since Jupyter Lab is in
         # its own venv, which is not writeable by the user, this should
         # require quite a bit of creativity.
+        try:
+            self._relocate_user_environment_if_requested()
+        except (OSError, PermissionError) as exc:
+            self._set_abnormal_startup(exc)
 
-        self._relocate_user_environment_if_requested()
+        try:
+            # Set up environment variables that we'll need either to launch the
+            # Lab or for the user's terminal environment
+            self._configure_env()
+        except (OSError, PermissionError) as exc:
+            self._set_abnormal_startup(exc)
 
-        # Set up environment variables that we'll need either to launch the
-        # Lab or for the user's terminal environment
-        self._configure_env()
+        # Clean up stale cache, check for writeability, try to free some
+        # space if necessary.  This stage will manage its own abnormality,
+        # since it tries to take some corrective action.
+        self._tidy_homedir()
 
-        # Copy files into the user's home space.  If $HOME is not mounted
-        # and writeable, things will go wrong here.
-        self._copy_files_to_user_homedir()
+        # If everything seems OK so far, copy files into the user's home
+        # space and set up git-lfs.
 
-        # Check out notebooks, and set up git-lfs
-        self._setup_git()
+        if not self._broken:
+            try:
+                self._copy_files_to_user_homedir()
+                self._setup_git()
+            except (OSError, PermissionError) as exc:
+                self._set_abnormal_startup(exc)
+
+        # Set up git-lfs
+        if not self._broken:
+            try:
+                self._setup_git()
+            except (OSError, PermissionError) as exc:
+                self._set_abnormal_startup(exc)
 
         # Decide between interactive and noninteractive start, do
         # things that change between those two, and launch the Lab
         self._launch()
+
+    def _set_abnormal_startup(self, exc: OSError | PermissionError) -> None:
+        self._broken = True
+        self._env["ABNORMAL_STARTUP"] = "TRUE"
+        self._env["ABNORMAL_STARTUP_ERRNO"] = str(exc.errno)
+        self._env["ABNORMAL_STARTUP_STRERROR"] = exc.strerror or ""
+        self._env["ABNORMAL_STARTUP_MESSAGE"] = str(exc)
+
+    def _clear_abnormal_startup(self) -> None:
+        for e in ("", "_ERRNO", "_STRERROR", "_MESSAGE"):
+            del self._env[f"ABNORMAL_STARTUP{e}"]
+            self._broken = False
 
     def _externalize(self, setting: str) -> str:
         # We build multiple settings by concatenating `EXTERNAL_INSTANCE_URL`
@@ -90,7 +121,7 @@ class LabRunner:
         # a slash or no slash on the end of `EXTERNAL_INSTANCE_URL` and
         # returning a string with exactly one slash as a separator between
         # the external URL and the setting.
-        ext_url = self._env["EXTERNAL_INSTANCE_URL"]
+        ext_url = self._env.get("EXTERNAL_INSTANCE_URL", "")
         return f"{ext_url.strip('/')}/{setting.lstrip('/')}"
 
     def _relocate_user_environment_if_requested(self) -> None:
@@ -255,8 +286,8 @@ class LabRunner:
     def _expand_panda_tilde(self) -> None:
         self._logger.debug("Expanding tilde in PANDA_CONFIG_ROOT, if needed")
         if "PANDA_CONFIG_ROOT" in self._env:
-            username = self._env["USER"]
-            path = Path(self._env["PANDA_CONFIG_ROOT"])
+            username = self._env.get("USER", "")
+            path = Path(self._env.get("PANDA_CONFIG_ROOT", ""))
             path_parts = path.parts
             if path_parts[0] in ("~", f"~{username}"):
                 new_path = Path(self._home, *path_parts[1:])
@@ -272,7 +303,7 @@ class LabRunner:
         # We're getting rid of the complicated stuff based on
         # HUB_SERVICE_HOST, since that was pre-version-3 nublado.
         self._logger.debug("Setting launch parameters")
-        base_url = self._env["JUPYTERHUB_BASE_URL"]
+        base_url = self._env.get("JUPYTERHUB_BASE_URL", "")
         jh_path = f"{base_url}hub"
         ext_url = self._env.get("EXTERNAL_INSTANCE_URL", "")
         host = urlparse(ext_url).hostname or ""
@@ -321,7 +352,99 @@ class LabRunner:
             self._logger.debug(f"Set 'PGPASSFILE' -> '{newpg}'")
 
     #
-    # The second big block is a bunch of file manipulation.
+    # The second big block tries to tidy the home directory.
+    #
+    def _tidy_homedir(self) -> None:
+        self._clean_astropy_cache()
+        self._test_for_space()
+
+    def _clean_astropy_cache(self) -> None:
+        # This is extremely conservative.  We only find URLs with an
+        # "Expires" parameter (in practice, s3 signed URLs), and remove
+        # the key and contents if the expiration is in the past.
+        cachedir = self._home / ".astropy" / "cache" / "download" / "url"
+        if not cachedir.exists():
+            return
+        candidates = [x for x in cachedir.iterdir() if x.is_dir()]
+        for c in candidates:
+            url = (c / "url").read_text()
+            qry = urlparse(url).query
+            if not qry:
+                continue
+            qs = qry.split("&")
+            for q in qs:
+                if q.startswith("Expires="):
+                    with contextlib.suppress(ValueError):
+                        exptime = int(q[len("Expires=") :])
+                    if time.time() > exptime:
+                        self._logger.debug(f"Removing expired cache {c!s}")
+                        try:
+                            self._remove_astropy_cachedir(c)
+                        except (OSError, PermissionError) as exc:
+                            self._logger.warning(
+                                f"Failed to remove cache {c!s}: {exc}"
+                            )
+                    # Having found the parameter, we are done with this url.
+                    break
+
+    def _remove_astropy_cachedir(self, cachedir: Path) -> None:
+        (cachedir / "url").unlink()
+        (cachedir / "contents").unlink()
+        cachedir.rmdir()
+
+    def _test_for_space(self) -> None:
+        cachefile = self._home / ".cache" / "1mb.txt"
+        try:
+            self._write_a_megabyte(cachefile)
+        except (PermissionError, OSError) as exc:
+            self._logger.warning("Could not write 1MB of text")
+            self._set_abnormal_startup(exc)
+        if self._broken:
+            self._try_emergency_cleanup()
+            try:
+                # Did that clear enough room?
+                self._write_a_megabyte(cachefile)
+                self._clear_abnormal_startup()
+            except (PermissionError, OSError):
+                pass  # Nope, stay broken.
+
+    def _write_a_megabyte(self, cachefile: Path) -> None:
+        # Try to write a 1M block, which should be enough to start the lab.
+        sixteen = "0123456789abcdef"
+        mega = sixteen * 64 * 1024
+
+        parent = cachefile.parent
+        parent.mkdir(exist_ok=True)
+        cachefile.write_text(mega)
+        self._remove_cachefile(cachefile)
+
+    def _remove_cachefile(self, cachefile: Path) -> None:
+        if cachefile.is_file():
+            cachefile.unlink()
+
+    def _try_emergency_cleanup(self) -> None:
+        # We have either critically low space, or there's something else
+        # wrong with the home directory.
+        #
+        # Try to reclaim the space by removing .cache and .astropy/cache.
+        #
+        # If we fail here, don't bother with recovery--we will be starting
+        # in a degraded mode, and offering the user an explanation, anyway.
+        self._logger.warning(
+            "Attempting emergency cleanup of .cache and .astropy/cache"
+        )
+        try:
+            for cdir in (
+                (self._home / ".cache"),
+                (self._home / ".astropy" / "cache"),
+            ):
+                shutil.rmtree(cdir, ignore_errors=True)
+                cdir.mkdir(exist_ok=True)
+        except Exception:
+            self._logger.exception("Emergency cleanup failed")
+
+    #
+    # The third big block is a bunch of file manipulation.
     #
     def _copy_files_to_user_homedir(self) -> None:
         self._logger.debug("Copying files to user home directory")
@@ -343,14 +466,14 @@ class LabRunner:
         # information in the container ("original credentials files")
         # is correct, but leave any other user config alone.
         #
-        hc_path = Path(self._env["AWS_SHARED_CREDENTIALS_FILE"])
+        hc_path = Path(self._env.get("AWS_SHARED_CREDENTIALS_FILE", ""))
         if not hc_path.parent.exists():
             hc_path.parent.mkdir(mode=0o700, parents=True)
         hc_path.touch(mode=0o600, exist_ok=True)
         home_config = configparser.ConfigParser()
         home_config.read(str(hc_path))
         ro_config = configparser.ConfigParser()
-        ro_config.read(self._env["ORIG_AWS_SHARED_CREDENTIALS_FILE"])
+        ro_config.read(self._env.get("ORIG_AWS_SHARED_CREDENTIALS_FILE", ""))
         for sect in ro_config.sections():
             home_config[sect] = ro_config[sect]
         with hc_path.open("w") as f:
@@ -362,7 +485,7 @@ class LabRunner:
         #
         config = {}
         # Get current config from homedir
-        home_pgpass = Path(self._env["PGPASSFILE"])
+        home_pgpass = Path(self._env.get("PGPASSFILE", ""))
         if not home_pgpass.parent.exists():
             home_pgpass.parent.mkdir(mode=0o700, parents=True)
         home_pgpass.touch(mode=0o600, exist_ok=True)
@@ -373,7 +496,7 @@ class LabRunner:
             connection, passwd = line.rsplit(":", maxsplit=1)
             config[connection] = passwd.rstrip()
         # Update config from container-supplied one
-        ro_pgpass = Path(self._env["ORIG_PGPASSFILE"])
+        ro_pgpass = Path(self._env.get("ORIG_PGPASSFILE", ""))
         lines = ro_pgpass.read_text().splitlines()
         for line in lines:
             if ":" not in line:
@@ -443,22 +566,22 @@ class LabRunner:
     def _copy_etc_skel(self) -> None:
         self._logger.debug("Copying files from /etc/skel if they don't exist")
         etc_skel = ETC_PATH / "skel"
-        # alas, Path.walk() requires Python 3.12, which isn't in the
-        # stack containers yet.  Once the Lab/stack split is finalized,
-        # we can make this simpler.
-        contents = os.walk(etc_skel)
+        contents = etc_skel.walk()
         #
         # We assume that if the file exists at all, we should leave it alone.
         # Users are allowed to modify these, after all.
         #
         for entry in contents:
+            dirpath = entry[0]
             dirs = [Path(x) for x in entry[1]]
             files = [Path(x) for x in entry[2]]
             # Determine what the destination directory should be
-            if entry[0] == str(etc_skel):
+            if dirpath == etc_skel:
                 current_dir = self._home
             else:
-                current_dir = self._home / entry[0][(len(str(etc_skel)) + 1) :]
+                current_dir = (
+                    self._home / str(dirpath)[(len(str(etc_skel)) + 1) :]
+                )
             # For each directory in the tree at this level:
             # if we don't already have one in our directory, make it.
             for d_item in dirs:
@@ -475,189 +598,13 @@ class LabRunner:
                     src_contents = src.read_bytes()
                     (current_dir / f_item).write_bytes(src_contents)
 
+    #
+    # Now that we're not checking out notebooks anymore, all we have to do
+    # with Git is install git-lfs.
+    #
     def _setup_git(self) -> None:
-        # Refresh standard notebooks
-        self._refresh_notebooks()
         # Set up Git LFS
         self._setup_gitlfs()
-
-    def _refresh_notebooks(self) -> None:
-        # Find the notebook specs.  I think we can ditch our fallbacks now.
-        self._logger.debug("Refreshing notebooks")
-        urls = self._env.get("AUTO_REPO_SPECS", "").split(",")
-        if not urls:
-            self._logger.debug("No repos listed in 'AUTO_REPO_SPECS'")
-            return
-
-        try:
-            self._refresh_each_repo(urls)
-        except CommandTimedOutError:
-            # Experientially this means Github is inaccessible.
-            # Either it's down (this really does sometimes happen)
-            # or pod routing is messed up somehow.  If the latter
-            # we're probably doomed when we try to talk to the
-            # Hub to tell it we're alive, but maybe it's just
-            # resolution-of-external-names that failed or
-            # something.
-            #
-            # We want to give up at the first timeout rather than doing this
-            # within the loop, because we only have a 90-second budget
-            # across all of them, and if the command times out once, it
-            # probably will again in the immediate future.
-            #
-            # Anyway, bail out and go with what (if anything) we've
-            # already got.
-            self._logger.exception(
-                "git comparison of local and remote timed out"
-            )
-            return
-
-    def _refresh_each_repo(self, urls: list[str]) -> None:
-        timeout = 30  # Probably don't need to parameterize it.  The only
-        # place it should matter is in clone and ls-remote; rev-parse and
-        # config are both local and should never take more than milliseconds.
-        reloc_msg = ""
-        now = datetime.datetime.now(datetime.UTC).isoformat()
-
-        for url in urls:
-            try:
-                repo, branch = url.split("@", maxsplit=1)
-            except ValueError:
-                self._logger.warning(
-                    "Could not get repo/branch information from"
-                    f" '{self._env['AUTO_REPO_SPECS']}'"
-                )
-                return
-            repo_path = urlparse(repo).path
-            repo_name = Path(repo_path).name
-            if repo_name.endswith(".git"):
-                repo_name = repo_name[:-4]
-            dirname = self._home / "notebooks" / repo_name
-            if dirname.is_dir():
-                # We're going to make the simplifying assumption that the
-                # user owns the directory and is in the directory's group.
-                # If not, probably a lot else has already gone wrong.
-                can_write = dirname.stat().st_mode & 0o222
-                if can_write:
-                    self._logger.debug(f"'{dirname!s}' is writeable; moving")
-                    newname = Path(f"{dirname!s}.{now}")
-                    reloc_msg += f"* '{dirname!s}' -> '{newname!s}'\n"
-                    # We're also going to assume the user DOES have write
-                    # permission in the parent directory.  Again, if not,
-                    # terrible things probably already happened.
-                    dirname.rename(newname)
-                else:
-                    # If the repository exists and is not writeable, and has
-                    # the same last commit as the remote, then we don't
-                    # need to update it.
-                    #
-                    # If this times out, it's a good bet that the clone would
-                    # too, so we should just give up and go with what we have.
-                    if self._compare_local_and_remote(
-                        dirname, branch, timeout
-                    ):
-                        self._logger.debug(f"'{dirname!s}' is r/o and current")
-                        continue  # Up-to-date; no action required
-                    # It's writeable or stale; re-clone.
-                    self._logger.debug(f"Need to remove '{dirname!s}'")
-                    symbolicmode.chmod(dirname, "u+w", recurse=True)
-                    shutil.rmtree(dirname)
-            # If the directory existed, it's gone now.
-
-            # Let a timeout exception from the clone propagate up to the
-            # enclosing call, so we deal with it only once.  Probably rare
-            # because we got through the local-and-remote comparison.
-
-            self._clone_repo(repo, branch, dirname=dirname, timeout=timeout)
-
-        if reloc_msg:
-            hdr = (
-                "# Directory relocation\n\n"
-                "The following directories were writeable, and were moved:\n"
-                "\n"
-                "\n"
-            )
-            reloc_msg = hdr + reloc_msg
-            (self._home / "notebooks" / "00_README_RELOCATION.md").write_text(
-                reloc_msg
-            )
-
-        self._logger.debug("Refreshed notebooks")
-
-    def _clone_repo(
-        self, repo: str, branch: str, *, dirname: Path, timeout: float
-    ) -> None:
-        self._logger.debug(f"Cloning {repo}@{branch}")
-        try:
-            proc = self._cmd.run(
-                "git",
-                "clone",
-                "--depth",
-                "1",
-                repo,
-                "-b",
-                branch,
-                str(dirname),
-                timeout=timeout,
-            )
-            if proc.returncode != 0:
-                self._logger.error("git clone failed", proc=proc)
-                return
-        except CommandTimedOutError:
-            self._logger.exception("git clone timed out", proc=proc)
-            return
-        symbolicmode.chmod(dirname, "a-w", recurse=True)
-
-    def _compare_local_and_remote(
-        self, path: Path, branch: str, timeout: int
-    ) -> bool:
-        # Returns True if git repo checked out to path has the same
-        # commit hash as the remote.
-        #
-        # Git wants you to be in the working tree
-        rx = self._cmd.run(
-            "git",
-            "rev-parse",
-            "HEAD",
-            cwd=path,
-            timeout=timeout,
-        )
-        local_sha = rx.stdout.strip() if rx else None
-        if not local_sha:
-            self._logger.error(f"Could not determine local SHA for '{path!s}'")
-            return False
-        rx = self._cmd.run(
-            "git",
-            "config",
-            "--get",
-            "remote.origin.url",
-            cwd=path,
-            timeout=timeout,
-        )
-        remote = rx.stdout.strip() if rx else None
-        if not remote:
-            self._logger.error(
-                "Could not determine git remote origin for" f"'{path!s}'"
-            )
-            return False
-        rx = self._cmd.run(
-            "git",
-            "ls-remote",
-            remote,
-            timeout=timeout,
-        )
-        lsr_lines = rx.stdout.strip().split("\n") if rx else []
-        remote_sha = None
-        for line in lsr_lines:
-            line.strip()
-            if line.endswith(f"\trefs/heads/{branch}"):
-                remote_sha = line.split()[0]
-                break
-        if not remote_sha:
-            self._logger.error("Could not determine SHA for {remote}")
-            return False
-        self._logger.debug(f"local /remote SHA: {local_sha}/{remote_sha}")
-        return local_sha == remote_sha
 
     def _setup_gitlfs(self) -> None:
         # Check for git-lfs
@@ -676,6 +623,9 @@ class LabRunner:
                     return True
         return False
 
+    #
+    # Start the lab.
+    #
     def _launch(self) -> None:
         # We're about to start the lab: set the flag saying we're running
         # inside the lab.  It's used by shell startup.
@@ -781,8 +731,8 @@ class LabRunner:
             "--port=8888",
             "--no-browser",
             f"--notebook-dir={self._home!s}",
-            f"--hub-prefix={self._stash['jupyterhub_path']}",
-            f"--hub-host={self._stash['external_host']}",
+            f"--hub-prefix={self._stash.get('jupyterhub_path','')}",
+            f"--hub-host={self._stash.get('external_host','')}",
             f"--log-level={log_level}",
             "--ContentsManager.allow_hidden=True",
             "--FileContentsManager.hide_globs=[]",
@@ -822,7 +772,7 @@ class LabRunner:
                 else:
                     self._logger.error(f"Lab process {cmd} failed to run")
                 self._logger.info(f"Waiting for {sleep_interval}s")
-                sleep(sleep_interval)
+                time.sleep(sleep_interval)
             self._logger.debug("Exiting")
             sys.exit(0)
         # Flush open files before exec()
@@ -830,7 +780,6 @@ class LabRunner:
         sys.stderr.flush()
         # In non-debug mode, we don't use a subprocess: we exec the
         # Jupyter Python process directly.  We use os.execvpe() because we
-        # want the Python in the path (which we currently know to be the
-        # stack Python), we have a list of arguments we just created, and
-        # we want to pass the environment we built up.
+        # want the Python in the path, we have a list of arguments we just
+        # created, and we want to pass the environment we built up.
         os.execvpe(cmd[0], cmd, env=self._env)
