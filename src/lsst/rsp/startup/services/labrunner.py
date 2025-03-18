@@ -722,11 +722,7 @@ class LabRunner:
     def _start(self) -> None:
         log_level = "DEBUG" if self._debug else "INFO"
         cmd = [
-            "python3",
-            "-s",
-            "-m",
-            "jupyter",
-            "labhub",
+            "jupyterhub-singleuser",
             "--ip=0.0.0.0",
             "--port=8888",
             "--no-browser",
@@ -735,6 +731,7 @@ class LabRunner:
             f"--hub-host={self._stash.get('external_host','')}",
             f"--log-level={log_level}",
             "--ContentsManager.allow_hidden=True",
+            "--ContentsManager.root_dir={self._home}",
             "--FileContentsManager.hide_globs=[]",
             "--KernelSpecManager.ensure_native_kernel=False",
             "--QtExporter.enabled=False",
@@ -779,7 +776,8 @@ class LabRunner:
         sys.stdout.flush()
         sys.stderr.flush()
         # In non-debug mode, we don't use a subprocess: we exec the
-        # Jupyter Python process directly.  We use os.execvpe() because we
-        # want the Python in the path, we have a list of arguments we just
-        # created, and we want to pass the environment we built up.
+        # Jupyter process directly.  We use os.execvpe() because we
+        # want to use the Python in the path, we have a list of
+        # arguments we just created, and we want to pass the
+        # environment we built up.
         os.execvpe(cmd[0], cmd, env=self._env)
