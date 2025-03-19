@@ -156,7 +156,6 @@ class LabRunner:
         self._set_cpu_variables()
         self._set_image_digest()
         self._expand_panda_tilde()
-        self._set_launch_params()
         self._set_firefly_variables()
         self._force_jupyter_prefer_env_path_false()
         self._set_butler_credential_variables()
@@ -298,21 +297,6 @@ class LabRunner:
                 self._env["PANDA_CONFIG_ROOT"] = str(new_path)
             elif path_parts[0].startswith("~"):
                 self._logger.warning(f"Cannot expand tilde in '{path!s}'")
-
-    def _set_launch_params(self) -> None:
-        # We're getting rid of the complicated stuff based on
-        # HUB_SERVICE_HOST, since that was pre-version-3 nublado.
-        self._logger.debug("Setting launch parameters")
-        base_url = self._env.get("JUPYTERHUB_BASE_URL", "")
-        jh_path = f"{base_url}hub"
-        ext_url = self._env.get("EXTERNAL_INSTANCE_URL", "")
-        host = urlparse(ext_url).hostname or ""
-
-        self._stash["jupyterhub_path"] = jh_path
-        self._stash["external_host"] = host
-        self._logger.debug(
-            f"Set host to '{host}', and Hub path to '{jh_path}'"
-        )
 
     def _set_firefly_variables(self) -> None:
         self._logger.debug("Setting firefly variables")
@@ -727,11 +711,9 @@ class LabRunner:
             "--port=8888",
             "--no-browser",
             f"--notebook-dir={self._home!s}",
-            f"--hub-prefix={self._stash.get('jupyterhub_path','')}",
-            f"--hub-host={self._stash.get('external_host','')}",
             f"--log-level={log_level}",
             "--ContentsManager.allow_hidden=True",
-            "--ContentsManager.root_dir={self._home}",
+            f"--ContentsManager.root_dir={self._home!s}",
             "--FileContentsManager.hide_globs=[]",
             "--KernelSpecManager.ensure_native_kernel=False",
             "--QtExporter.enabled=False",
