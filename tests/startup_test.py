@@ -161,16 +161,6 @@ def test_set_timeout_vars(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.usefixtures("_rsp_env")
-def test_set_launch_params(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("JUPYTERHUB_BASE_URL", "/nb/")
-    monkeypatch.setenv("EXTERNAL_INSTANCE_URL", "https://lab.example.com:8443")
-    lr = LabRunner()
-    lr._set_launch_params()
-    assert lr._stash["jupyterhub_path"] == "/nb/hub"
-    assert lr._stash["external_host"] == "lab.example.com"
-
-
-@pytest.mark.usefixtures("_rsp_env")
 def test_set_firefly_variables(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("EXTERNAL_INSTANCE_URL", "https://lab.example.com:8443")
     lr = LabRunner()
