@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 from subprocess import SubprocessError
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse
 
 import structlog
 
@@ -26,6 +26,7 @@ from ..constants import (
     PREVIOUS_LOGGING_CHECKSUMS,
     SCRATCH_PATH,
 )
+from ..exceptions import RSPErrorCode, RSPStartupError
 from ..models.noninteractive import NonInteractiveExecutor
 from ..storage.command import Command
 from ..storage.logging import configure_logging
@@ -50,13 +51,16 @@ class LabRunner:
         self._debug = bool(self._env.get("DEBUG", ""))
         configure_logging(debug=self._debug)
         self._logger = structlog.get_logger(APP_NAME)
-        self._home = Path(self._env.get("HOME", "/tmp"))
-        if "JUPYTERHUB_BASE_URL" not in self._env:
-            self._logger.error("'JUPYTERHUB_BASE_URL' must be set")
-        self._user = ""
-        self._stash: dict[str, str] = {}  # Used for settings we don't expose.
-        self._cmd = Command(ignore_fail=True, logger=self._logger)
         self._broken = False
+        for req_env in ("JUPYTERHUB_BASE_URL", "HOME"):
+            if req_env not in self._env:
+                exc = RSPStartupError("EBADENV", None, req_env)
+                self._set_abnormal_startup(exc)
+        # If no home, use /tmp?  It won't work but at least if we create
+        # stuff there it will be harmless, and the user will get a message
+        # indicating what's wrong.
+        self._home = Path(self._env.get("HOME", "/tmp"))
+        self._cmd = Command(ignore_fail=True, logger=self._logger)
 
     def go(self) -> None:
         """Start the user lab."""
@@ -67,14 +71,8 @@ class LabRunner:
         # require quite a bit of creativity.
         try:
             self._relocate_user_environment_if_requested()
-        except (OSError, PermissionError) as exc:
-            self._set_abnormal_startup(exc)
-
-        try:
-            # Set up environment variables that we'll need either to launch the
-            # Lab or for the user's terminal environment
             self._configure_env()
-        except (OSError, PermissionError) as exc:
+        except OSError as exc:
             self._set_abnormal_startup(exc)
 
         # Clean up stale cache, check for writeability, try to free some
@@ -89,40 +87,43 @@ class LabRunner:
             try:
                 self._copy_files_to_user_homedir()
                 self._setup_git()
-            except (OSError, PermissionError) as exc:
-                self._set_abnormal_startup(exc)
-
-        # Set up git-lfs
-        if not self._broken:
-            try:
-                self._setup_git()
-            except (OSError, PermissionError) as exc:
+            except OSError as exc:
                 self._set_abnormal_startup(exc)
 
         # Decide between interactive and noninteractive start, do
         # things that change between those two, and launch the Lab
         self._launch()
 
-    def _set_abnormal_startup(self, exc: OSError | PermissionError) -> None:
+    def _set_abnormal_startup(self, exc: OSError) -> None:
+        """Take an OSError, convert it into an RSPStartupError if necessary,
+        and then set the env variables that rsp-jupyter-extensions will use
+        to report the error to the user at Lab startup.
+        """
         self._broken = True
+        if not isinstance(exc, RSPStartupError):
+            # This will also catch the EUNKNOWN case
+            new_exc = RSPStartupError.from_os_error(exc)
+        else:
+            new_exc = exc
+
         self._env["ABNORMAL_STARTUP"] = "TRUE"
-        self._env["ABNORMAL_STARTUP_ERRNO"] = str(exc.errno)
-        self._env["ABNORMAL_STARTUP_STRERROR"] = exc.strerror or ""
-        self._env["ABNORMAL_STARTUP_MESSAGE"] = str(exc)
+        self._env["ABNORMAL_STARTUP_ERRNO"] = str(new_exc.errno)
+        self._env["ABNORMAL_STARTUP_STRERROR"] = (
+            # Mypy didn't know the above caught the EUNKNOWN case.
+            new_exc.strerror
+            or os.strerror(int(new_exc.errno or RSPErrorCode.EUNKNOWN.value))
+            or f"Unknown error {new_exc.errno}"
+        )
+        self._env["ABNORMAL_STARTUP_ERRORCODE"] = new_exc.errorcode
+        self._env["ABNORMAL_STARTUP_MESSAGE"] = str(new_exc)
+        msg = f"Abnormal RSP startup set with exception {new_exc!s}"
+        self._logger.error(msg)
 
     def _clear_abnormal_startup(self) -> None:
-        for e in ("", "_ERRNO", "_STRERROR", "_MESSAGE"):
+        for e in ("", "_ERRNO", "_STRERROR", "_MESSAGE", "_ERRORCODE"):
             del self._env[f"ABNORMAL_STARTUP{e}"]
             self._broken = False
-
-    def _externalize(self, setting: str) -> str:
-        # We build multiple settings by concatenating `EXTERNAL_INSTANCE_URL`
-        # with some other string.  Make this robust by accepting either
-        # a slash or no slash on the end of `EXTERNAL_INSTANCE_URL` and
-        # returning a string with exactly one slash as a separator between
-        # the external URL and the setting.
-        ext_url = self._env.get("EXTERNAL_INSTANCE_URL", "")
-        return f"{ext_url.strip('/')}/{setting.lstrip('/')}"
+            self._logger.info("Cleared abnormal startup condition")
 
     def _relocate_user_environment_if_requested(self) -> None:
         if not self._env.get("RESET_USER_ENV", ""):
@@ -193,7 +194,7 @@ class LabRunner:
         user_scratch_path = SCRATCH_PATH / user / path
         try:
             user_scratch_path.mkdir(parents=True, exist_ok=True, mode=0o700)
-        except (OSError, FileExistsError) as exc:
+        except OSError as exc:
             self._logger.warning(
                 f"Could not create directory at {user_scratch_path!s}: {exc}"
             )
@@ -285,8 +286,11 @@ class LabRunner:
     def _expand_panda_tilde(self) -> None:
         self._logger.debug("Expanding tilde in PANDA_CONFIG_ROOT, if needed")
         if "PANDA_CONFIG_ROOT" in self._env:
-            username = self._env.get("USER", "")
-            path = Path(self._env.get("PANDA_CONFIG_ROOT", ""))
+            for ev in ("USER", "PANDA_CONFIG_ROOT"):
+                if ev not in self._env:
+                    raise RSPStartupError(RSPErrorCode.EBADENV, None, ev)
+            username = self._env["USER"]
+            path = Path(self._env["PANDA_CONFIG_ROOT"])
             path_parts = path.parts
             if path_parts[0] in ("~", f"~{username}"):
                 new_path = Path(self._home, *path_parts[1:])
@@ -301,7 +305,12 @@ class LabRunner:
     def _set_firefly_variables(self) -> None:
         self._logger.debug("Setting firefly variables")
         firefly_route = self._env.get("FIREFLY_ROUTE", "/firefly")
-        self._env["FIREFLY_URL"] = self._externalize(firefly_route)
+        ext_url = self._env.get(
+            "EXTERNAL_INSTANCE_URL", "https://localhost:8888"
+        )
+        self._env["FIREFLY_URL"] = (
+            f"{ext_url.strip('/')}/{firefly_route.lstrip('/')}"
+        )
         self._logger.debug(f"Firefly URL -> '{self._env['FIREFLY_URL']}'")
 
     def _force_jupyter_prefer_env_path_false(self) -> None:
@@ -362,22 +371,21 @@ class LabRunner:
             qry = urlparse(url).query
             if not qry:
                 continue
-            qs = qry.split("&")
-            for q in qs:
-                if q.startswith("Expires="):
-                    self._handle_expiry(c, q)
+            for key, value in parse_qsl(qry):
+                if key.lower() == "expires":
+                    self._handle_expiry(c, value)
 
     def _handle_expiry(self, cachefile: Path, expiry: str) -> None:
         try:
-            exptime = int(expiry[len("Expires=") :])
-        except Exception:
+            exptime = int(expiry)
+        except ValueError:
             self._logger.exception("Could not parse Expires header")
             return
         if time.time() > exptime:
             self._logger.debug(f"Removing expired cache {cachefile!s}")
             try:
                 self._remove_astropy_cachedir(cachefile)
-            except (OSError, PermissionError):
+            except OSError:
                 self._logger.exception(f"Failed to remove cache {cachefile!s}")
                 # Having found the parameter, we are done with this url.
                 return
@@ -391,7 +399,7 @@ class LabRunner:
         cachefile = self._home / ".cache" / "1mb.txt"
         try:
             self._write_a_megabyte(cachefile)
-        except (PermissionError, OSError) as exc:
+        except OSError as exc:
             self._logger.warning("Could not write 1MB of text")
             self._set_abnormal_startup(exc)
         if self._broken:
@@ -400,7 +408,7 @@ class LabRunner:
                 # Did that clear enough room?
                 self._write_a_megabyte(cachefile)
                 self._clear_abnormal_startup()
-            except (PermissionError, OSError):
+            except OSError:
                 pass  # Nope, stay broken.
 
     def _write_a_megabyte(self, cachefile: Path) -> None:
@@ -461,14 +469,18 @@ class LabRunner:
         # information in the container ("original credentials files")
         # is correct, but leave any other user config alone.
         #
-        hc_path = Path(self._env.get("AWS_SHARED_CREDENTIALS_FILE", ""))
+        ascf = "AWS_SHARED_CREDENTIALS_FILE"
+        for ev in (ascf, "ORIG_" + ascf):
+            if ev not in self._env:
+                raise RSPStartupError(RSPErrorCode.EBADENV, None, ev)
+        hc_path = Path(self._env["AWS_SHARED_CREDENTIALS_FILE"])
         if not hc_path.parent.exists():
             hc_path.parent.mkdir(mode=0o700, parents=True)
         hc_path.touch(mode=0o600, exist_ok=True)
         home_config = configparser.ConfigParser()
         home_config.read(str(hc_path))
         ro_config = configparser.ConfigParser()
-        ro_config.read(self._env.get("ORIG_AWS_SHARED_CREDENTIALS_FILE", ""))
+        ro_config.read(self._env["ORIG_AWS_SHARED_CREDENTIALS_FILE"])
         for sect in ro_config.sections():
             home_config[sect] = ro_config[sect]
         with hc_path.open("w") as f:
@@ -480,7 +492,11 @@ class LabRunner:
         #
         config = {}
         # Get current config from homedir
-        home_pgpass = Path(self._env.get("PGPASSFILE", ""))
+        ppf = "PGPASSFILE"
+        for ev in (ppf, "ORIG_" + ppf):
+            if ev not in self._env:
+                raise RSPStartupError(RSPErrorCode.EBADENV)
+        home_pgpass = Path(self._env["PGPASSFILE"])
         if not home_pgpass.parent.exists():
             home_pgpass.parent.mkdir(mode=0o700, parents=True)
         home_pgpass.touch(mode=0o600, exist_ok=True)
@@ -491,7 +507,7 @@ class LabRunner:
             connection, passwd = line.rsplit(":", maxsplit=1)
             config[connection] = passwd.rstrip()
         # Update config from container-supplied one
-        ro_pgpass = Path(self._env.get("ORIG_PGPASSFILE", ""))
+        ro_pgpass = Path(self._env["ORIG_PGPASSFILE"])
         lines = ro_pgpass.read_text().splitlines()
         for line in lines:
             if ":" not in line:
@@ -724,7 +740,6 @@ class LabRunner:
             f"--notebook-dir={self._home!s}",
             f"--log-level={log_level}",
             "--ContentsManager.allow_hidden=True",
-            f"--ContentsManager.root_dir={self._home!s}",
             "--FileContentsManager.hide_globs=[]",
             "--KernelSpecManager.ensure_native_kernel=False",
             "--QtExporter.enabled=False",
@@ -770,7 +785,6 @@ class LabRunner:
         sys.stderr.flush()
         # In non-debug mode, we don't use a subprocess: we exec the
         # Jupyter process directly.  We use os.execvpe() because we
-        # want to use the Python in the path, we have a list of
-        # arguments we just created, and we want to pass the
-        # environment we built up.
+        # have a list of arguments we just created and we want to
+        # pass the environment we built up.
         os.execvpe(cmd[0], cmd, env=self._env)

@@ -1,6 +1,7 @@
 """Tests for startup object."""
 
 import configparser
+import errno
 import json
 import os
 import shutil
@@ -194,7 +195,7 @@ def test_set_butler_credential_vars(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.usefixtures("_rsp_env")
 def test_busted_homedir(monkeypatch: pytest.MonkeyPatch) -> None:
     def out_of_space(lrobj: LabRunner, cachefile: Path) -> None:
-        raise OSError(122, "quota exceeded", str(cachefile))
+        raise OSError(errno.EDQUOT, None, str(cachefile))
 
     monkeypatch.setattr(LabRunner, "_write_a_megabyte", out_of_space)
     lr = LabRunner()
@@ -203,7 +204,7 @@ def test_busted_homedir(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert lr._broken
     assert lr._env["ABNORMAL_STARTUP"] == "TRUE"
-    assert lr._env["ABNORMAL_STARTUP_ERRNO"] == "122"
+    assert lr._env["ABNORMAL_STARTUP_ERRNO"] == str(errno.EDQUOT)
 
     lr._clear_abnormal_startup()
     assert lr._broken is not True
