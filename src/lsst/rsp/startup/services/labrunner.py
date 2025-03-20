@@ -351,25 +351,36 @@ class LabRunner:
             return
         candidates = [x for x in cachedir.iterdir() if x.is_dir()]
         for c in candidates:
-            url = (c / "url").read_text()
+            urlfile = c / "url"
+            if not urlfile.is_file():
+                continue
+            try:
+                url = urlfile.read_text()
+            except Exception:
+                self._logger.exception("Could not read {urlfile!s}")
+                continue
             qry = urlparse(url).query
             if not qry:
                 continue
             qs = qry.split("&")
             for q in qs:
                 if q.startswith("Expires="):
-                    with contextlib.suppress(ValueError):
-                        exptime = int(q[len("Expires=") :])
-                    if time.time() > exptime:
-                        self._logger.debug(f"Removing expired cache {c!s}")
-                        try:
-                            self._remove_astropy_cachedir(c)
-                        except (OSError, PermissionError) as exc:
-                            self._logger.warning(
-                                f"Failed to remove cache {c!s}: {exc}"
-                            )
-                    # Having found the parameter, we are done with this url.
-                    break
+                    self._handle_expiry(c, q)
+
+    def _handle_expiry(self, cachefile: Path, expiry: str) -> None:
+        try:
+            exptime = int(expiry[len("Expires=") :])
+        except Exception:
+            self._logger.exception("Could not parse Expires header")
+            return
+        if time.time() > exptime:
+            self._logger.debug(f"Removing expired cache {cachefile!s}")
+            try:
+                self._remove_astropy_cachedir(cachefile)
+            except (OSError, PermissionError):
+                self._logger.exception(f"Failed to remove cache {cachefile!s}")
+                # Having found the parameter, we are done with this url.
+                return
 
     def _remove_astropy_cachedir(self, cachedir: Path) -> None:
         (cachedir / "url").unlink()
