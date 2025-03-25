@@ -68,7 +68,7 @@ def get_pyvo_auth() -> pyvo.auth.authsession.AuthSession | None:
     tap_url = get_service_url("tap")
     obstap_url = get_service_url("obstap")
     ssotap_url = get_service_url("ssotap")
-    siav2_url = get_service_url("siav2")
+    sia_url = get_service_url("sia")
     s = requests.Session()
     tok = get_access_token()
     if not tok:
@@ -78,8 +78,7 @@ def get_pyvo_auth() -> pyvo.auth.authsession.AuthSession | None:
     auth.credentials.set("lsst-token", s)
     auth.add_security_method_for_url(get_service_url("cutout"), "lsst-token")
     auth.add_security_method_for_url(get_service_url("datalink"), "lsst-token")
-    auth.add_security_method_for_url(siav2_url, "lsst-token")
-    auth.add_security_method_for_url(siav2_url + "/query", "lsst-token")
+    auth.add_security_method_for_url(sia_url, "lsst-token")
     auth.add_security_method_for_url(tap_url, "lsst-token")
     auth.add_security_method_for_url(tap_url + "/sync", "lsst-token")
     auth.add_security_method_for_url(tap_url + "/async", "lsst-token")
