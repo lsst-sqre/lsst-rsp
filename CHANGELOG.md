@@ -6,6 +6,25 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.8.1'></a>
+## 0.8.1 (2025-03-26)
+
+### Backwards-incompatible changes
+
+-
+
+### New features
+
+-
+
+### Bug fixes
+
+- Package find needed a wildcard to work with current setuptools.
+
+### Other changes
+
+-
+
 <a id='changelog-0.8.0'></a>
 ## 0.8.0 (2025-03-26)
 
