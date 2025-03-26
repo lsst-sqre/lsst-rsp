@@ -166,7 +166,10 @@ class LabRunner:
         self._logger.debug("Determining user name")
         user = self._env.get("USER", "")
         if not user:
-            self._env["USER"] = pwd.getpwuid(os.getuid()).pw_name
+            user = pwd.getpwuid(os.getuid()).pw_name
+            if not user:
+                raise RSPStartupError(RSPErrorCode.EBADENV, None, "USER")
+            self._env["USER"] = user
 
     def _check_user_scratch_subdir(self, path: Path) -> Path | None:
         # This is very Rubin specific.  We generally have a large
@@ -286,9 +289,7 @@ class LabRunner:
     def _expand_panda_tilde(self) -> None:
         self._logger.debug("Expanding tilde in PANDA_CONFIG_ROOT, if needed")
         if "PANDA_CONFIG_ROOT" in self._env:
-            for ev in ("USER", "PANDA_CONFIG_ROOT"):
-                if ev not in self._env:
-                    raise RSPStartupError(RSPErrorCode.EBADENV, None, ev)
+            # We've already been through set_user(), so USER must be set.
             username = self._env["USER"]
             path = Path(self._env["PANDA_CONFIG_ROOT"])
             path_parts = path.parts
