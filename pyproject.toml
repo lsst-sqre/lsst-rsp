@@ -2,7 +2,7 @@
 # https://packaging.python.org/en/latest/specifications/declaring-project-metadata/
 name = "lsst-rsp"
 description = "Utility functions for the Rubin Science Platform"
-license = {file = "LICENSE"}
+license = "MIT"
 readme= "README.md"
 keywords = [
     "rubin",
@@ -11,7 +11,6 @@ keywords = [
 # https://pypi.org/classifiers/
 classifiers = [
     "Development Status :: 4 - Beta",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
@@ -20,6 +19,7 @@ classifiers = [
     "Operating System :: POSIX",
     "Typing :: Typed",
 ]
+
 requires-python = ">=3.12"
 dependencies = [
     "Deprecated<2",
@@ -69,7 +69,7 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 # https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html
 where = ["src"]
-include = ["lsst"]
+include = ["lsst*"]
 
 [tool.setuptools_scm]
 
