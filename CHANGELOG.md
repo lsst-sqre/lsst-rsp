@@ -6,6 +6,31 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.8.0'></a>
+## 0.8.0 (2025-03-26)
+
+### Backwards-incompatible changes
+
+- The Lab will now start if it cannot write to the home directory. It will attempt to free up space if it can do so safely, and will set environment variables handled in rsp-jupyter-extensions to present a warning dialog to the user.
+
+- The Lab no longer downloads notebooks from GitHub on startup.
+
+- Python 3.11 support removed.
+
+### New features
+
+-
+
+### Bug fixes
+
+-
+
+### Other changes
+
+- Add consdbtap to list of known TAP services in catalog.get_tap_service
+
+-
+
 <a id='changelog-0.7.1'></a>
 ## 0.7.1 (2025-02-25)
 
