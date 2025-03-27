@@ -14,16 +14,17 @@ def get_datalink_result(result: ObsCoreRecord) -> DatalinkResults:
     )
 
 
-def get_siav2_service(label: str) -> SIA2Service:
+def get_siav2_service(label: str, data_release: str) -> SIA2Service:
     """Construct an `SIA2Service` client."""
-    # No matter what, we've only got one sia server per environment
-    # so for now just do some checking.
+    # data_release determines the Data release, as we may have different
+    # releases being served from the same server.
+    # The label parameter here corresponds to RSP "kind" (i.e. "telescope",
+    # "science", "staff")
 
-    # However we may have multiple different endpoints
-    # for different releases being served from the same server.
-    # The label parameter here corresponds to the data release
+    if label == "telescope":
+        raise ValueError(label + " data not available at your location")
 
-    sia_url = get_service_url(f"sia/{label}")
+    sia_url = get_service_url(f"sia/{data_release}")
     session = get_pyvo_auth()
     if session:
         session.add_security_method_for_url(sia_url + "/query", "lsst-token")
