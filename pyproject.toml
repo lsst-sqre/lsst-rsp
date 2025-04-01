@@ -2,7 +2,7 @@
 # https://packaging.python.org/en/latest/specifications/declaring-project-metadata/
 name = "lsst-rsp"
 description = "Utility functions for the Rubin Science Platform"
-license = "MIT"
+license = { text = "MIT"}
 readme= "README.md"
 keywords = [
     "rubin",
