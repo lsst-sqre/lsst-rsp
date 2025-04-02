@@ -81,7 +81,7 @@ def get_pyvo_auth() -> pyvo.auth.authsession.AuthSession | None:
         "ssotap": get_service_url("ssotap"),
         "consdbtap": get_service_url("consdbtap"),
         "live": get_service_url("live"),
-        "siav2": get_service_url("siav2"),
+        "sia": get_service_url("sia"),
         "cutout": get_service_url("cutout"),
         "datalink": get_service_url("datalink"),
     }
@@ -93,9 +93,6 @@ def get_pyvo_auth() -> pyvo.auth.authsession.AuthSession | None:
         if name in ["tap", "obstap", "ssotap", "consdbtap", "live"]:
             for subpath in ["/sync", "/async", "/tables"]:
                 auth.add_security_method_for_url(url + subpath, "lsst-token")
-
-        elif name == "siav2":
-            auth.add_security_method_for_url(url + "/query", "lsst-token")
 
     return auth
 
