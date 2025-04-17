@@ -6,6 +6,17 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.8.3'></a>
+## 0.8.3 (2025-04-17)
+
+### Bug fixes
+
+- Added consdbtap to list of TAP services that we add the lsst-token authentication method for in pyvo
+
+### Other changes
+
+- Changed get_siav2_service to work with new SIA app and added data_release parameter to it
+
 <a id='changelog-0.8.1'></a>
 ## 0.8.1 (2025-03-26)
 
