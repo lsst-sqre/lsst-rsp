@@ -11,7 +11,6 @@ import shutil
 import sys
 import time
 from pathlib import Path
-from subprocess import SubprocessError
 from typing import Any
 from urllib.parse import parse_qsl, urlparse
 
@@ -751,41 +750,10 @@ class LabRunner:
         ]
         cmd.extend(self._set_timeout_variables())
         self._logger.debug("Command to run:", command=cmd)
-        # Set environment variable to indicate we are inside JupyterLab
-        # (we want the shell to source loadLSST.bash once we are)
-        if self._debug:
-            # Maybe we want to parameterize these?
-            retries = 10
-            sleep_interval = 60
-            for i in range(retries):
-                self._logger.debug(f"Lab spawn attempt {i+1}/{retries}:")
-                try:
-                    proc = self._cmd.run(*cmd, env=self._env)
-                except SubprocessError as exc:
-                    self._logger.exception(
-                        f"Command {cmd} failed to run", exc=exc
-                    )
-                if proc:
-                    if proc.returncode:
-                        self._logger.error(
-                            f"Lab exited with returncode {proc.returncode}",
-                            proc=proc,
-                        )
-                    else:
-                        self._logger.warning(
-                            "Lab process exited with returncode 0", proc=proc
-                        )
-                else:
-                    self._logger.error(f"Lab process {cmd} failed to run")
-                self._logger.info(f"Waiting for {sleep_interval}s")
-                time.sleep(sleep_interval)
-            self._logger.debug("Exiting")
-            sys.exit(0)
         # Flush open files before exec()
         sys.stdout.flush()
         sys.stderr.flush()
-        # In non-debug mode, we don't use a subprocess: we exec the
-        # Jupyter process directly.  We use os.execvpe() because we
-        # have a list of arguments we just created and we want to
-        # pass the environment we built up.
+        # exec the Jupyter process directly.  We use os.execvpe()
+        # because we have a list of arguments we just created and we
+        # want to pass the environment we built up.
         os.execvpe(cmd[0], cmd, env=self._env)
