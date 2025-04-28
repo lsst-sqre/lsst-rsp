@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.8.4'></a>
+## 0.8.4 (2025-04-28)
+
+### Bug fixes
+
+- Debug mode was not working correctly because it invoked a subshell
+
 <a id='changelog-0.8.3'></a>
 ## 0.8.3 (2025-04-17)
 
