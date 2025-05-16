@@ -7,7 +7,6 @@ __all__ = [
     "ETC_PATH",
     "PREVIOUS_LOGGING_CHECKSUMS",
     "MAX_NUMBER_OUTPUTS",
-    "SCRATCH_PATH",
 ]
 
 APP_NAME = "nublado"
@@ -31,6 +30,3 @@ MAX_NUMBER_OUTPUTS = 10000
 
 Used to prevent OOM-killing if some cell generates a lot of output.
 """
-
-SCRATCH_PATH = Path("/scratch")
-"""Scratch path, usually /scratch, but overrideable for tests."""

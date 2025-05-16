@@ -23,7 +23,6 @@ from ..constants import (
     ETC_PATH,
     MAX_NUMBER_OUTPUTS,
     PREVIOUS_LOGGING_CHECKSUMS,
-    SCRATCH_PATH,
 )
 from ..exceptions import RSPErrorCode, RSPStartupError
 from ..models.noninteractive import NonInteractiveExecutor
@@ -172,9 +171,9 @@ class LabRunner:
 
     def _check_user_scratch_subdir(self, path: Path) -> Path | None:
         # This is very Rubin specific.  We generally have a large
-        # world-writable filesystem in SCRATCH_PATH (`/scratch`).
+        # world-writable filesystem in a scratch path.
         #
-        # Given a path we well test that SCRATCH_PATH/user/path can be
+        # Given a path we will test that SCRATCH_PATH/user/path can be
         # created as a writable directory (or that it already exists
         # as a writable directory).  If it can be (or is), we return the
         # whole path, and if not, we return None.
@@ -183,17 +182,20 @@ class LabRunner:
         # they want to share, but for TMPDIR and DAF_BUTLER_CACHE_DIRECTORY
         # they probably should not.  The mode will not be reset if the
         # directory already exists and is writeable
-        if not SCRATCH_PATH.is_dir():
+
+        scratch_path = Path(os.getenv("SCRATCH_PATH") or "/scratch")
+
+        if not scratch_path.is_dir():
             self._logger.debug(
                 # Debug only: not having /scratch is reasonable.
-                f"{SCRATCH_PATH} is not a directory."
+                f"{scratch_path} is not a directory."
             )
             return None
         user = self._env.get("USER", "")
         if not user:
             self._logger.warning("Could not determine user from environment")
             return None
-        user_scratch_path = SCRATCH_PATH / user / path
+        user_scratch_path = scratch_path / user / path
         try:
             user_scratch_path.mkdir(parents=True, exist_ok=True, mode=0o700)
         except OSError as exc:
@@ -209,14 +211,14 @@ class LabRunner:
 
     def _set_tmpdir_if_scratch_available(self) -> None:
         # Assuming that TMPDIR is not already set (e.g. by the spawner),
-        # we will try to create <SCRATCH_PATH>/<user>/tmp and ensure it is a
+        # we will try to create <scratch_path>/<user>/tmp and ensure it is a
         # writeable directory, and if it is, TMPDIR will be repointed to it.
         # This will then reduce our ephemeral storage issues, which have
         # caused mass pod eviction and destruction of the prepull cache.
         #
         # In our tests at the IDF, on a 2CPU/8GiB "Medium", TMPDIR on
         # /scratch (NFS) is about 15% slower than on local ephemeral storage.
-        self._logger.debug(f"Resetting TMPDIR if {SCRATCH_PATH} available")
+        self._logger.debug("Resetting TMPDIR if scratch storage available")
         tmpdir = self._env.get("TMPDIR", "")
         if tmpdir:
             self._logger.debug(f"Not setting TMPDIR: already set to {tmpdir}")
