@@ -6,7 +6,6 @@ import json
 import os
 import shutil
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -54,19 +53,12 @@ def test_set_tmpdir(monkeypatch: pytest.MonkeyPatch) -> None:
     lr._set_tmpdir_if_scratch_available()
     assert lr._env["TMPDIR"] == "/preset"
     monkeypatch.delenv("TMPDIR")
-    # Can't write SCRATCH_DIR
-    with patch(
-        "lsst.rsp.startup.services.labrunner.SCRATCH_PATH",
-        (Path("/nonexistent") / "scratch"),
-    ):
-        with patch(
-            "lsst.rsp.startup.constants.SCRATCH_PATH",
-            (Path("nonexistent") / "scratch"),
-        ):
-            lr = LabRunner()
-            lr._set_tmpdir_if_scratch_available()
-            assert "TMPDIR" not in lr._env
-    # Get rid of user-specific scratch dir too.
+    # Can't write to scratch dir
+    monkeypatch.setenv("SCRATCH_PATH", "/nonexistent/scratch")
+    lr = LabRunner()
+    lr._set_tmpdir_if_scratch_available()
+    assert "TMPDIR" not in lr._env
+    monkeypatch.delenv("SCRATCH_PATH")
     scratch_path.parent.rmdir()
 
 

@@ -59,11 +59,8 @@ def _rsp_env(
         )
         t_scratch = Path(fake_root) / "scratch"
         t_scratch.mkdir()
-        with patch(
-            "lsst.rsp.startup.services.labrunner.SCRATCH_PATH", t_scratch
-        ):
-            with patch("lsst.rsp.startup.constants.SCRATCH_PATH", t_scratch):
-                yield
+        monkeypatch.setenv("SCRATCH_PATH", str(t_scratch))
+        yield
 
 
 @pytest.fixture
