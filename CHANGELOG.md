@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.8.5'></a>
+## 0.8.5 (2025-05-16)
+
+### Other changes
+
+- Allow configuration override of scratch directory.
+
 <a id='changelog-0.8.4'></a>
 ## 0.8.4 (2025-04-28)
 
