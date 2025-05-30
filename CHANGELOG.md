@@ -6,6 +6,14 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.9.0'></a>
+## 0.9.0 (2025-05-30)
+
+### New features
+
+- Added landing page provisioner to startup class.
+- Added docker image build for provisioner.
+
 <a id='changelog-0.8.5'></a>
 ## 0.8.5 (2025-05-16)
 
