@@ -226,7 +226,7 @@ select = ["ALL"]
 "src/lsst/rsp/startup/**" = [
     "S606",    # Sometimes we really mean os.execve(), not subprocess.run()
 ]
-"src/lsst/rsp/startup/services/labrunner.py" = [
+"src/lsst/rsp/startup/services/labrunner/labrunner.py" = [
     "S108",    # We really do mean explicitly `/tmp`
 ]
 "tests/startup_test.py" = [

@@ -18,7 +18,7 @@ def _rsp_paths(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     # For each of these, we want to cover both the "from ..constants import"
     # and the "import lsst.rsp.constants" case.
     with patch(
-        "lsst.rsp.startup.services.labrunner.ETC_PATH",
+        "lsst.rsp.startup.services.labrunner.labrunner.ETC_PATH",
         (Path(__file__).parent / "support" / "files" / "etc"),
     ):
         with patch(
