@@ -1,5 +1,12 @@
 name: Python CI
 
+# Python versioning is a little weird here:
+# lsst-rsp has to be usable from inside the DM stack.  That's Python
+# 3.12.  However, the init container can be, and is, Python 3.13.
+#
+# So: test against both.  Build the container with 3.13.  Build and
+# upload the library with 3.12.
+
 "on":
   merge_group: {}
   pull_request: {}
@@ -29,7 +36,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
       - name: Run pre-commit
         uses: pre-commit/action@v3.0.1
@@ -39,13 +46,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    strategy:
+      matrix:
+        python:
+          - "3.12"
+          - "3.13"
     steps:
       - uses: actions/checkout@v4
 
       - name: Run tox
         uses: lsst-sqre/run-tox@v1
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python }}
           tox-envs: "py,typing"
 
 
@@ -64,6 +76,62 @@ jobs:
         with:
           python-version: "3.12"
           upload: false
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    timeout-minutes: 15
+
+    # Only do Docker builds of tagged releases and pull requests from ticket
+    # branches. This will still trigger on pull requests from untrusted
+    # repositories whose branch names match our tickets/* branch convention,
+    # but in this case the build will fail with an error since the secret
+    # won't be set.
+    if: >
+      startsWith(github.ref, 'refs/tags/')
+      || startsWith(github.head_ref, 'tickets/')
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history is required for setuptools_scm versioning.
+          fetch-depth: 0
+      - uses: lsst-sqre/build-and-push-to-ghcr@v1
+        id: build-rsp-landing-page-provisioner
+        with:
+          dockerfile: Dockerfile
+          image: ${{ github.repository }}-rsp-landing-page-provisioner
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Google Artifact Repository
+        uses: docker/login-action@v3
+        with:
+          registry: us-central1-docker.pkg.dev
+          username: "_json_key_base64"
+          password: ${{ secrets.GAR_PUSH_TOKEN }}
+
+      - name: Docker meta
+        id: rsp-landing-page-provisioner-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            us-central1-docker.pkg.dev/rubin-shared-services-71ec/sciplat/rsp-landing-page-provisioner
+          tags: |
+            type=raw,${{ steps.build-rsp-landing-page-provisioner.outputs.tag }}
+
+      - name: Build and push rsp-landing-page-provisioner to GAR
+        uses: docker/build-push-action@v6
+        with:
+          context: "."
+          file: Dockerfile
+          push: "true"
+          tags: ${{ steps.rsp-landing-page-provisioner-meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Report result
+        run: |
+          echo Pushed ghcr.io/${{ github.repository }}-rsp-landing-page-provisioner:${{ steps.build-inithome.outputs.tag }}
 
   pypi:
 
