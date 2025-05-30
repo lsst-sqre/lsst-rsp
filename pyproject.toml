@@ -14,6 +14,7 @@ classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Intended Audience :: Developers",
     "Natural Language :: English",
     "Operating System :: POSIX",
@@ -37,7 +38,8 @@ name = "Association of Universities for Research in Astronomy, Inc. (AURA)"
 email = "sqre-admin@lists.lsst.org"
 
 [project.scripts]
-launch-rubin-jupyterlab = "lsst.rsp.startup.cli:main"
+launch-rubin-jupyterlab = "lsst.rsp.startup.cli:launch_lab"
+provision-landing-page  = "lsst.rsp.startup.cli:provision_landing_page"
 
 [project.optional-dependencies]
 dev = [

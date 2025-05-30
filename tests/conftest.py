@@ -12,6 +12,8 @@ import pytest
 
 from lsst.rsp.startup.storage.command import Command
 
+# Things for startup/labrunner
+
 
 @pytest.fixture
 def _rsp_paths(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
@@ -80,3 +82,42 @@ def git_repo() -> Iterator[Path]:
         cmd.run("git", "commit", "-am", "Initial Commit")
         os.chdir(pwd)
         yield Path(repo)
+
+
+# Things for startup/landing_page.
+
+
+@pytest.fixture(scope="session")
+def monkeysession() -> Iterator[pytest.MonkeyPatch]:
+    """MonkeyPatch, but session-scoped."""
+    mpatch = pytest.MonkeyPatch()
+    yield mpatch
+    mpatch.undo()
+
+
+@pytest.fixture(scope="session")
+def _init_container_fake_root(
+    monkeysession: pytest.MonkeyPatch,
+) -> Iterator[None]:
+    with TemporaryDirectory() as td:
+        contents = {
+            "hello.txt": "Hello, world!\n",
+            "goodbye.txt": "Goodbye, cruel world.\n",
+        }
+        tutorial_directory = Path(td) / "tutorials"
+        tutorial_directory.mkdir(parents=True)
+        for fn, text in contents.items():
+            out_file = tutorial_directory / fn
+            out_file.write_text(text)
+        home_directory = Path(td) / "home" / "gregorsamsa"
+        home_directory.mkdir(parents=True)
+
+        monkeysession.setenv("NUBLADO_HOME", str(home_directory))
+        monkeysession.setenv(
+            "CST_LANDING_PAGE_SRC_DIR", str(tutorial_directory)
+        )
+        monkeysession.setenv("CST_LANDING_PAGE_TGR_DIR", "notebooks/tutorials")
+        monkeysession.setenv(
+            "CST_LANDING_PAGE_FILES", "hello.txt", "goodbye.txt"
+        )
+        yield
