@@ -2,20 +2,22 @@
 page for "science" sites, to allow those sites to load a tutorial
 document on startup.
 
-It has two phases: first, it creates links to the landing page and the
-files that page needs, and second, if the user default for opening the
-file is not the Markdown Viewer already, it writes out configuration
-for that.
+It has two phases: first, it creates copies of the landing page and
+supporting files, and second, if the user default for opening the file
+is not the Markdown Viewer already, it writes out configuration for
+that.
 
-The links need to be somewhere the lab container documentManager can
-access then, therefore inside the homedir and not hidden dot files.
+The files must be somewhere that the Notebook container can open them, and
+must be writeable files (not symlinks to a read-only target) if the
+Save-All or Save-And-Quite functionality is to work.
 
-It is expected to be running in the context of the current user, as
-part of an initContainer running after the user home directories are
-provisioned, but before the user lab container begins to start.
+The tool is expected to be running in the context of the current user,
+as part of an initContainer running after the user home directories
+are provisioned, but before the user lab container begins to start.
 """
 
 import json
+import shutil
 from typing import Any, Self
 
 from .exceptions import (
@@ -52,31 +54,25 @@ class Provisioner:
             )
 
     def _provision_tutorial_directories(self) -> None:
-        t_dir = self._dest_dir / "notebooks" / "tutorials"
-        t_dir.mkdir(mode=0o755, exist_ok=True, parents=True)
+        self._dest_dir.mkdir(mode=0o755, exist_ok=True, parents=True)
 
     def _link_files(self) -> None:
         for src in self._source_files:
             dest = self._dest_dir / src.name
             if dest.exists(follow_symlinks=False):
-                if dest.is_dir():
-                    raise DestinationIsDirectoryError(str(dest))
-                if dest.is_file():
-                    # Remediation from a past attempt.  If it's a file,
-                    # it shouldn't be, it should be a symlink.  Remove
-                    # and recreate.
+                if dest.is_symlink() or dest.is_file():
+                    # Turns out a symlink to a read-only file isn't going
+                    # to work.
+                    #
+                    # Remove and recopy.  It's probably imperceptibly slower
+                    # than trying to be clever about it.
                     dest.unlink()
-                elif dest.is_symlink():
-                    current_target = dest.readlink()
-                    if current_target != src:
-                        dest.unlink()
+                elif dest.is_dir():
+                    raise DestinationIsDirectoryError(str(dest))
                 else:
                     # It's...a device, or a named pipe, or ... something?
                     raise DestinationError(str(dest))
-            # If we get here and it still exists, it's a symlink pointing
-            # to the right target, so we just leave it alone.
-            if not dest.exists(follow_symlinks=False):
-                dest.symlink_to(src)
+            shutil.copy(src, dest)
 
     def _edit_settings(self) -> None:
         settings_dir = (
