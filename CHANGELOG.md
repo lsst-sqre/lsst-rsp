@@ -6,6 +6,14 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.9.1'></a>
+## 0.9.1 (2025-05-31)
+
+### Bug fixes
+
+- Make landing page files files rather than symlinks.
+- Don't create extraneous directories.
+
 <a id='changelog-0.9.0'></a>
 ## 0.9.0 (2025-05-30)
 
