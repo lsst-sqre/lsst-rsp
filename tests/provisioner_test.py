@@ -38,7 +38,10 @@ def test_provisioner_basic() -> None:
     pr.go()
 
     for outf in outfiles:
-        assert outf.is_symlink()
+        assert outf.is_file()
+
+    dest_files = list(pr._dest_dir.glob("*"))
+    assert len(dest_files) == 1
 
     assert settings.is_file()
     s_obj = json.loads(settings.read_text())
@@ -77,8 +80,7 @@ def test_bad_destination() -> None:
     if destfile.exists():
         # I mean technically you don't HAVE to run all the tests in order.
         # So you might not already have the file here.
-        assert destfile.is_symlink()
-        assert destfile.readlink() == source_file
+        assert destfile.is_file()
         destfile.unlink()
 
     # Directory
@@ -93,18 +95,19 @@ def test_bad_destination() -> None:
         pr.go()
     destfile.unlink()
 
-    # File
-    destfile.write_text("!dlroW olleH\n")
-    assert destfile.is_file()
-    pr.go()
-    assert destfile.is_symlink()
-    assert destfile.readlink() == source_file
-    destfile.unlink()
-
-    # Link, but wrong
+    # Symlink
     destfile.symlink_to(Path("broken_link"))
     assert destfile.is_symlink()
-    assert destfile.readlink() != source_file
     pr.go()
-    assert destfile.is_symlink()
-    assert destfile.readlink() == source_file
+    assert destfile.is_file()
+
+    # File requiring overwrite.
+    bad_text = "!dlroW olleH\n"
+    destfile.write_text(bad_text)
+    source_text = source_file.read_text()
+    assert source_text != bad_text
+    assert destfile.is_file()
+    pr.go()
+    assert destfile.is_file()
+    assert destfile.read_text() == source_text
+    destfile.unlink()
