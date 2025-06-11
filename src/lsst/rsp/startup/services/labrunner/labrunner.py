@@ -195,7 +195,12 @@ class LabRunner:
         if not user:
             self._logger.warning("Could not determine user from environment")
             return None
+        schema = self._env.get("HOMEDIR_SCHEMA", "username")
         user_scratch_path = scratch_path / user / path
+        # This is pretty ad-hoc, but USDF uses the first letter in the
+        # username for both home and scratch
+        if schema == "initialThenUsername":
+            user_scratch_path = scratch_path / user[0] / user / path
         try:
             user_scratch_path.mkdir(parents=True, exist_ok=True, mode=0o700)
         except OSError as exc:
@@ -651,8 +656,13 @@ class LabRunner:
 
     def _modify_interactive_settings(self) -> None:
         self._logger.debug("Modifying interactive settings if needed")
-        self._manage_access_token()
-        self._increase_log_limit()
+        # These both write files; if either fails, start up but warn
+        # the user their experience is likely to be bad.
+        try:
+            self._manage_access_token()
+            self._increase_log_limit()
+        except OSError as exc:
+            self._set_abnormal_startup(exc)
 
     def _increase_log_limit(self) -> None:
         self._logger.debug("Increasing log limit if needed")
