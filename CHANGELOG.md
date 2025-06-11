@@ -6,6 +6,17 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.9.2'></a>
+## 0.9.2 (2025-06-11)
+
+### New features
+
+- Detect HOMEDIR_SCHEMA for scratch-path calculation
+
+### Bug fixes
+
+- If writing token or increasing log depth fails, continue but warn user on startup
+
 <a id='changelog-0.9.1'></a>
 ## 0.9.1 (2025-05-31)
 
