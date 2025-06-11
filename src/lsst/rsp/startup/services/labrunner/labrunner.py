@@ -195,7 +195,12 @@ class LabRunner:
         if not user:
             self._logger.warning("Could not determine user from environment")
             return None
+        schema = self._env.get("HOMEDIR_SCHEMA", "username")
         user_scratch_path = scratch_path / user / path
+        # This is pretty ad-hoc, but USDF uses the first letter in the
+        # username for both home and scratch
+        if schema == "initialThenUsername":
+            user_scratch_path = scratch_path / user[0] / user / path
         try:
             user_scratch_path.mkdir(parents=True, exist_ok=True, mode=0o700)
         except OSError as exc:
