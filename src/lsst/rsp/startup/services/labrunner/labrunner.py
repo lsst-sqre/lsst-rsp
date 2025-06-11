@@ -656,8 +656,13 @@ class LabRunner:
 
     def _modify_interactive_settings(self) -> None:
         self._logger.debug("Modifying interactive settings if needed")
-        self._manage_access_token()
-        self._increase_log_limit()
+        # These both write files; if either fails, start up but warn
+        # the user their experience is likely to be bad.
+        try:
+            self._manage_access_token()
+            self._increase_log_limit()
+        except OSError as exc:
+            self._set_abnormal_startup(exc)
 
     def _increase_log_limit(self) -> None:
         self._logger.debug("Increasing log limit if needed")
