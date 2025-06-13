@@ -22,14 +22,14 @@ def input_from_env() -> ProvisionerInput:
     source_dir = Path(
         os.getenv(
             "CST_LANDING_PAGE_SRC_DIR",
-            "/rubin/cst_repos/tutorial-notebooks-data/data",
+            "/rubin/cst_repos/tutorial-notebooks-data/welcome",
         )
     )
     target_dir = Path(
         os.getenv("CST_LANDING_PAGE_TGT_DIR", "notebooks/tutorials")
     )
     filelist_str = os.getenv(
-        "CST_LANDING_PAGE_FILES", "landing_page.md,logo_for_header.png"
+        "CST_LANDING_PAGE_FILES", "welcome.md,logo_for_header.png"
     )
     filelist_list = filelist_str.split(",")
     source_files = [source_dir / x for x in filelist_list]
