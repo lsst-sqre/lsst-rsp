@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.9.3'></a>
+## 0.9.3 (2025-06-13)
+
+### Other changes
+
+- Changed default for CST welcome page.
+
 <a id='changelog-0.9.2'></a>
 ## 0.9.2 (2025-06-11)
 
