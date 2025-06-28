@@ -742,14 +742,69 @@ class LabRunner:
                 result.append(f"--{timeout_map[setting]}={val}")
         return result
 
+    def _make_abnormal_landing_page(self) -> None:
+        # This is very ad-hoc.  Revisit after DP1.
+        # What we're doing is writing in an empty, ephemeral filesystem,
+        # to drop a document explaining what's going on, and to tweak the
+        # display settings such that markdown is displayed in its rendered
+        # form.
+        abnormal = bool(self._env.get("ABNORMAL_STARTUP", ""))
+        if not abnormal:
+            return
+        user = self._env["USER"]
+        home = self._env.get("NUBLADO_HOME", "") or self._env.get("HOME", "")
+        if not home:
+            home = f"/home/{user}"  # We're just guessing at this point.
+        txt = "# Abnormal startup\n"
+        txt += "\nYour Lab container did not start normally.\n"
+        txt += f"Error: `{self._env.get("ABNORMAL_STARTUP_MESSAGE","")}`\n"
+        txt += "\nIf that looks like a file space error, try using the "
+        txt += f"terminal to remove unneeded files in `{home}`.  You can "
+        txt += "use the `quota` command to check how much space is in use. "
+        txt += "After that, shut down and restart the Lab.\n"
+        txt += "\nOtherwise, please open an issue with your RSP site"
+        txt += " administrator.\n"
+        s_obj = {"defaultViewers": {"markdown": "Markdown Preview"}}
+        s_txt = json.dumps(s_obj)
+
+        try:
+            welcome = Path("/tmp/notebooks/tutorials/welcome.md")
+            welcome.parent.mkdir(exist_ok=True, parents=True)
+            welcome.write_text(txt)
+            settings = (
+                Path("/tmp")
+                / ".jupyter"
+                / "lab"
+                / "user-settings"
+                / "@jupyterlab"
+                / "docmanager-extension"
+                / "plugin.jupyterlab-settings"
+            )
+            settings.parent.mkdir(exist_ok=True, parents=True)
+            settings.write_text(s_txt)
+        except Exception:
+            self._logger.exception("Writing abnormal startup files failed")
+
     def _start(self) -> None:
+        abnormal = bool(self._env.get("ABNORMAL_STARTUP", ""))
         log_level = "DEBUG" if self._debug else "INFO"
+        notebook_dir = f"{self._home!s}"
+        if abnormal:
+            self._logger.warning(
+                f"Abnormal startup: {self._env['ABNORMAL_STARTUP_MESSAGE']}"
+            )
+            self._make_abnormal_landing_page()
+            self._logger.warning("Launching with homedir='/tmp'")
+            self._env["HOME"] = "/tmp"
+            os.environ["HOME"] = "/tmp"
+            notebook_dir = "/tmp"
+
         cmd = [
             "jupyterhub-singleuser",
             "--ip=0.0.0.0",
             "--port=8888",
             "--no-browser",
-            f"--notebook-dir={self._home!s}",
+            f"--notebook-dir={notebook_dir}",
             f"--log-level={log_level}",
             "--ContentsManager.allow_hidden=True",
             "--FileContentsManager.hide_globs=[]",
