@@ -743,13 +743,25 @@ class LabRunner:
         return result
 
     def _start(self) -> None:
+        abnormal = bool(self._env.get("ABNORMAL_STARTUP", ""))
         log_level = "DEBUG" if self._debug else "INFO"
+        notebook_dir = f"{self._home!s}"
+        if abnormal:
+            self._logger.warning(
+                f"Abnormal startup: {self._env['ABNORMAL_STARTUP_MESSAGE']}"
+            )
+        notebook_dir = "/tmp"
+        self._logger.debug(
+            f"About to launch: abnormal {abnormal!s}; log level {log_level};"
+            f" notebook dir {notebook_dir}"
+        )
+
         cmd = [
             "jupyterhub-singleuser",
             "--ip=0.0.0.0",
             "--port=8888",
             "--no-browser",
-            f"--notebook-dir={self._home!s}",
+            f"--notebook-dir={notebook_dir}",
             f"--log-level={log_level}",
             "--ContentsManager.allow_hidden=True",
             "--FileContentsManager.hide_globs=[]",
