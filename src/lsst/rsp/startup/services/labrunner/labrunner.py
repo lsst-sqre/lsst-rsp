@@ -742,6 +742,31 @@ class LabRunner:
                 result.append(f"--{timeout_map[setting]}={val}")
         return result
 
+    def _make_abnormal_landing_page(self) -> None:
+        # This is very ad-hoc.  Revisit after DP1.
+        abnormal = bool(self._env.get("ABNORMAL_STARTUP", ""))
+        if not abnormal:
+            return
+        user = self._env["USER"]
+        home = self._env.get(
+            "NUBLADO_HOME", (self._env.get("HOME"), f"/home/{user}")
+        )
+        txt = "# Abnormal startup\n"
+        txt += "\nYour Lab container did not start normally.\n"
+        txt += f"Error: `{self._env.get("ABNORMAL_STARTUP_MESSAGE","")}`\n"
+        txt += "\nIf that looks like a file space error, try using the "
+        txt += f"terminal to remove unneeded files in `{home}`.  You can "
+        txt += "use the `quota` command to check how much space is in use. "
+        txt += "After that, shut down and restart the Lab.\n"
+        txt += "\nOtherwise, please open an issue with your RSP site"
+        txt += " administrator.\n"
+        try:
+            welcome = Path("/tmp/notebooks/tutorials/welcome.md")
+            welcome.parent.mkdir(exist_ok=True, parents=True)
+            welcome.write_text(txt)
+        except Exception:
+            self._logger.exception("Writing abnormal startup message failed")
+
     def _start(self) -> None:
         abnormal = bool(self._env.get("ABNORMAL_STARTUP", ""))
         log_level = "DEBUG" if self._debug else "INFO"
@@ -750,11 +775,11 @@ class LabRunner:
             self._logger.warning(
                 f"Abnormal startup: {self._env['ABNORMAL_STARTUP_MESSAGE']}"
             )
-        notebook_dir = "/tmp"
-        self._logger.debug(
-            f"About to launch: abnormal {abnormal!s}; log level {log_level};"
-            f" notebook dir {notebook_dir}"
-        )
+            self._make_abnormal_landing_page()
+            self._logger.warning("Launching with homedir='/tmp'")
+            self._env["HOME"] = "/tmp"
+            os.environ["HOME"] = "/tmp"
+            notebook_dir = "/tmp"
 
         cmd = [
             "jupyterhub-singleuser",
