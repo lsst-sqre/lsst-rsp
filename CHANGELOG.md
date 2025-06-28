@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.9.4'></a>
+## 0.9.4 (2025-06-28)
+
+### Bug fixes
+
+- Make Lab startup more robust when confronted with out-of-quota errors.
+
 <a id='changelog-0.9.3'></a>
 ## 0.9.3 (2025-06-13)
 
