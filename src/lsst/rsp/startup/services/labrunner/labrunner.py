@@ -11,6 +11,7 @@ import shutil
 import sys
 import time
 from pathlib import Path
+from textwrap import dedent
 from typing import Any
 from urllib.parse import parse_qsl, urlparse
 
@@ -742,28 +743,21 @@ class LabRunner:
                 result.append(f"--{timeout_map[setting]}={val}")
         return result
 
-    def _make_abnormal_landing_page(self) -> None:
-        # This is very ad-hoc.  Revisit after DP1.
-        # What we're doing is writing in an empty, ephemeral filesystem,
-        # to drop a document explaining what's going on, and to tweak the
-        # display settings such that markdown is displayed in its rendered
-        # form.
-        abnormal = bool(self._env.get("ABNORMAL_STARTUP", ""))
-        if not abnormal:
+    def _make_abnormal_startup_environment(self) -> None:
+        # What we're doing is writing (we hope) in an empty, ephemeral
+        # filesystem to drop a document explaining what's going on, and to
+        # tweak the display settings such that the document is displayed in
+        # its rendered form.
+        #
+        # The good news is, anything we write here is going to be in /tmp,
+        # and therefore should not stick around in any sanely-configured,
+        # K8s-based, RSP.
+
+        # Try a sanity check and ensure that we are in fact in a broken state.
+        if not self._broken:
             return
-        user = self._env["USER"]
-        home = self._env.get("NUBLADO_HOME", "") or self._env.get("HOME", "")
-        if not home:
-            home = f"/home/{user}"  # We're just guessing at this point.
-        txt = "# Abnormal startup\n"
-        txt += "\nYour Lab container did not start normally.\n"
-        txt += f"Error: `{self._env.get("ABNORMAL_STARTUP_MESSAGE","")}`\n"
-        txt += "\nIf that looks like a file space error, try using the "
-        txt += f"terminal to remove unneeded files in `{home}`.  You can "
-        txt += "use the `quota` command to check how much space is in use. "
-        txt += "After that, shut down and restart the Lab.\n"
-        txt += "\nOtherwise, please open an issue with your RSP site"
-        txt += " administrator.\n"
+
+        txt = self._make_abnormal_landing_markdown()
         s_obj = {"defaultViewers": {"markdown": "Markdown Preview"}}
         s_txt = json.dumps(s_obj)
 
@@ -783,17 +777,102 @@ class LabRunner:
             settings.parent.mkdir(exist_ok=True, parents=True)
             settings.write_text(s_txt)
         except Exception:
-            self._logger.exception("Writing abnormal startup files failed")
+            self._logger.exception(
+                "Writing files to report abnormal startup failed"
+            )
+
+    def _make_abnormal_landing_markdown(self) -> str:
+        user = self._env["USER"]
+        home = self._env.get(
+            "NUBLADO_HOME",
+            self._env.get(
+                "HOME",
+                f"/home/{user}",  # Guess, albeit a good one.
+            ),
+        )
+
+        errmsg = self._env.get("ABNORMAL_STARTUP_MESSAGE", "<no message>")
+        errcode = self._env.get("ABNORMAL_STARTUP_ERRORCODE", "EUNKNOWN")
+
+        self._logger.error(
+            f"Abnormal startup: errorcode {errcode}; message {errmsg}"
+        )
+
+        open_an_issue = dedent(
+            f"""
+
+            Please open an issue with your RSP site administrator with the
+            following information: `{errmsg}`
+            """
+        )
+
+        # Start with generic error text.  It's very simple markdown, with a
+        # heading and literal text only.
+
+        txt = dedent("""
+        # Abnormal startup
+
+        Your Lab container did not start normally.
+
+        Do not trust this lab for work you want to keep.
+
+        """)
+
+        # Now add error-specific advice.
+        match errcode:
+            case "EDQUOT":
+                txt += dedent(
+                    f"""
+                    You have exceeded your quota.  Try using the terminal to
+                    remove unneeded files in `{home}`.  You can use the
+                    `quota` command to check your usage.
+
+                    After that, shut down and restart the lab.  If that does
+                    not result in a working lab:
+                    """
+                )
+            case "ENOSPC":
+                txt += dedent(
+                    f"""
+                    You have run out of filesystem space.  Try using the
+                    terminal to remove unneeded files in `{home}`.  Since the
+                    filesystem is full, this may not be something you can
+                    correct.
+
+                    After you have trimmed whatever possible, shut down and
+                    restart the lab.
+
+                    If that does not result in a working lab:
+                    """
+                )
+            case "EROFS" | "EACCES":
+                txt += dedent(
+                    """
+                    You do not have permission to write.  Ask your RSP
+                    administrator to check ownership and permissions on your
+                    directories.
+                    """
+                )
+            case "EBADENV":
+                txt += dedent(
+                    """
+                    You are missing environment variables necessary for RSP
+                    operation.
+                    """
+                )
+            case _:
+                pass
+        txt += dedent(open_an_issue)
+        return txt
 
     def _start(self) -> None:
-        abnormal = bool(self._env.get("ABNORMAL_STARTUP", ""))
         log_level = "DEBUG" if self._debug else "INFO"
         notebook_dir = f"{self._home!s}"
-        if abnormal:
+        if self._broken:
             self._logger.warning(
                 f"Abnormal startup: {self._env['ABNORMAL_STARTUP_MESSAGE']}"
             )
-            self._make_abnormal_landing_page()
+            self._make_abnormal_startup_environment()
             self._logger.warning("Launching with homedir='/tmp'")
             self._env["HOME"] = "/tmp"
             os.environ["HOME"] = "/tmp"
