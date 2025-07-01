@@ -177,7 +177,8 @@ class LabRunner:
         # Given a path we will test that SCRATCH_PATH/user/path can be
         # created as a writable directory (or that it already exists
         # as a writable directory).  If it can be (or is), we return the
-        # whole path, and if not, we return None.
+        # whole path, and if not, we return None.  If we can set it,
+        # we also set the SCRATCH_DIR environment variable to point to it.
         #
         # This will only be readable by the user; they can chmod() it if
         # they want to share, but for TMPDIR and DAF_BUTLER_CACHE_DIRECTORY
@@ -213,6 +214,7 @@ class LabRunner:
             self._logger.warning(f"Unable to write to {user_scratch_path!s}")
             return None
         self._logger.debug(f"Using user scratch path {user_scratch_path!s}")
+        self._env["SCRATCH_DIR"] = f"{user_scratch_path!s}"
         return user_scratch_path
 
     def _set_tmpdir_if_scratch_available(self) -> None:
@@ -242,16 +244,13 @@ class LabRunner:
         dbcd = self._env.get(env_v, "")
         if dbcd:
             self._logger.debug(
-                f"Not setting DAF_BUTLER_CACHE_DIRECTORY: already set to"
-                f" {dbcd}"
+                f"Not setting {env_v}: already set to" f" {dbcd}"
             )
             return
         temp_path = self._check_user_scratch_subdir(Path("butler_cache"))
         if temp_path:
             self._env[env_v] = str(temp_path)
-            self._logger.debug(
-                f"Set DAF_BUTLER_CACHE_DIRECTORY to {temp_path!s}"
-            )
+            self._logger.debug(f"Set {env_v} to {temp_path!s}")
             return
         # In any sane RSP environment, /tmp will not be shared (it will
         # be either tmpfs or on ephemeral storage, and in any case not
