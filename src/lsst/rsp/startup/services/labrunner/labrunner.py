@@ -198,11 +198,12 @@ class LabRunner:
             self._logger.warning("Could not determine user from environment")
             return None
         schema = self._env.get("HOMEDIR_SCHEMA", "username")
-        user_scratch_path = scratch_path / user / path
+        user_scratch_dir = scratch_path / user
         # This is pretty ad-hoc, but USDF uses the first letter in the
         # username for both home and scratch
         if schema == "initialThenUsername":
-            user_scratch_path = scratch_path / user[0] / user / path
+            user_scratch_dir = scratch_path / user[0] / user
+        user_scratch_path = user_scratch_dir / path
         try:
             user_scratch_path.mkdir(parents=True, exist_ok=True, mode=0o700)
         except OSError as exc:
@@ -214,7 +215,8 @@ class LabRunner:
             self._logger.warning(f"Unable to write to {user_scratch_path!s}")
             return None
         self._logger.debug(f"Using user scratch path {user_scratch_path!s}")
-        self._env["SCRATCH_DIR"] = f"{user_scratch_path!s}"
+        # Set user-specific top dir as SCRATCH_DIR
+        self._env["SCRATCH_DIR"] = f"{user_scratch_dir!s}"
         return user_scratch_path
 
     def _set_tmpdir_if_scratch_available(self) -> None:
@@ -743,14 +745,13 @@ class LabRunner:
         return result
 
     def _make_abnormal_startup_environment(self) -> None:
-        # What we're doing is writing (we hope) in an empty, ephemeral
-        # filesystem to drop a document explaining what's going on, and to
-        # tweak the display settings such that the document is displayed in
-        # its rendered form.
+        # What we're doing is writing (we hope) someplace safe, be that
+        # an empty, ephemeral filesystem (such as /tmp in any sanely-configured
+        # K8s-based RSP) or in scratch space somewhere.
         #
-        # The good news is, anything we write here is going to be in /tmp,
-        # and therefore should not stick around in any sanely-configured,
-        # K8s-based, RSP.
+        # Performance is irrelevant.  As we explain to the user, they should
+        # not be using this lab for anything other than immediate problem
+        # amelioration.
 
         # Try a sanity check and ensure that we are in fact in a broken state.
         if not self._broken:
@@ -761,11 +762,12 @@ class LabRunner:
         s_txt = json.dumps(s_obj)
 
         try:
-            welcome = Path("/tmp/notebooks/tutorials/welcome.md")
+            temphome = self._env.get("SCRATCH_DIR", "/tmp")
+            welcome = Path(temphome) / "notebooks" / "tutorials" / "welcome.md"
             welcome.parent.mkdir(exist_ok=True, parents=True)
             welcome.write_text(txt)
             settings = (
-                Path("/tmp")
+                Path(temphome)
                 / ".jupyter"
                 / "lab"
                 / "user-settings"
@@ -872,10 +874,18 @@ class LabRunner:
                 f"Abnormal startup: {self._env['ABNORMAL_STARTUP_MESSAGE']}"
             )
             self._make_abnormal_startup_environment()
-            self._logger.warning("Launching with homedir='/tmp'")
-            self._env["HOME"] = "/tmp"
-            os.environ["HOME"] = "/tmp"
-            notebook_dir = "/tmp"
+            #
+            # We will check to see if we got SCRATCH_DIR set before we broke,
+            # and if so, use that, which would be a user-specific path on a
+            # scratch filesystem.  If we didn't, we just use "/tmp" and hope
+            # for the best.  Any reasonably-configured RSP running under K8s
+            # will not have a shared "/tmp".
+            #
+            temphome = self._env.get("SCRATCH_DIR", "/tmp")
+            self._logger.warning(f"Launching with homedir='{temphome}'")
+            self._env["HOME"] = temphome
+            os.environ["HOME"] = temphome
+            notebook_dir = temphome
 
         cmd = [
             "jupyterhub-singleuser",
