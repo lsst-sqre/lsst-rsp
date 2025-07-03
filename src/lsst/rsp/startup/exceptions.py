@@ -162,4 +162,5 @@ class RSPStartupError(OSError):
         strerror = (
             exc.strerror or os.strerror(errnum) or f"Unknown error {errnum}"
         )
-        return cls(errnum, strerror, exc.filename, exc.filename2)
+        winerror = ""  # Change if we ever need windows support
+        return cls(errnum, strerror, exc.filename, winerror, exc.filename2)

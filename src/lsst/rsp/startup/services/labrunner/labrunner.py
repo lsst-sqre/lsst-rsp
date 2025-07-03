@@ -11,6 +11,7 @@ import shutil
 import sys
 import time
 from pathlib import Path
+from textwrap import dedent
 from typing import Any
 from urllib.parse import parse_qsl, urlparse
 
@@ -176,7 +177,8 @@ class LabRunner:
         # Given a path we will test that SCRATCH_PATH/user/path can be
         # created as a writable directory (or that it already exists
         # as a writable directory).  If it can be (or is), we return the
-        # whole path, and if not, we return None.
+        # whole path, and if not, we return None.  If we can set it,
+        # we also set the SCRATCH_DIR environment variable to point to it.
         #
         # This will only be readable by the user; they can chmod() it if
         # they want to share, but for TMPDIR and DAF_BUTLER_CACHE_DIRECTORY
@@ -196,11 +198,12 @@ class LabRunner:
             self._logger.warning("Could not determine user from environment")
             return None
         schema = self._env.get("HOMEDIR_SCHEMA", "username")
-        user_scratch_path = scratch_path / user / path
+        user_scratch_dir = scratch_path / user
         # This is pretty ad-hoc, but USDF uses the first letter in the
         # username for both home and scratch
         if schema == "initialThenUsername":
-            user_scratch_path = scratch_path / user[0] / user / path
+            user_scratch_dir = scratch_path / user[0] / user
+        user_scratch_path = user_scratch_dir / path
         try:
             user_scratch_path.mkdir(parents=True, exist_ok=True, mode=0o700)
         except OSError as exc:
@@ -212,6 +215,8 @@ class LabRunner:
             self._logger.warning(f"Unable to write to {user_scratch_path!s}")
             return None
         self._logger.debug(f"Using user scratch path {user_scratch_path!s}")
+        # Set user-specific top dir as SCRATCH_DIR
+        self._env["SCRATCH_DIR"] = f"{user_scratch_dir!s}"
         return user_scratch_path
 
     def _set_tmpdir_if_scratch_available(self) -> None:
@@ -241,16 +246,13 @@ class LabRunner:
         dbcd = self._env.get(env_v, "")
         if dbcd:
             self._logger.debug(
-                f"Not setting DAF_BUTLER_CACHE_DIRECTORY: already set to"
-                f" {dbcd}"
+                f"Not setting {env_v}: already set to" f" {dbcd}"
             )
             return
         temp_path = self._check_user_scratch_subdir(Path("butler_cache"))
         if temp_path:
             self._env[env_v] = str(temp_path)
-            self._logger.debug(
-                f"Set DAF_BUTLER_CACHE_DIRECTORY to {temp_path!s}"
-            )
+            self._logger.debug(f"Set {env_v} to {temp_path!s}")
             return
         # In any sane RSP environment, /tmp will not be shared (it will
         # be either tmpfs or on ephemeral storage, and in any case not
@@ -742,37 +744,30 @@ class LabRunner:
                 result.append(f"--{timeout_map[setting]}={val}")
         return result
 
-    def _make_abnormal_landing_page(self) -> None:
-        # This is very ad-hoc.  Revisit after DP1.
-        # What we're doing is writing in an empty, ephemeral filesystem,
-        # to drop a document explaining what's going on, and to tweak the
-        # display settings such that markdown is displayed in its rendered
-        # form.
-        abnormal = bool(self._env.get("ABNORMAL_STARTUP", ""))
-        if not abnormal:
+    def _make_abnormal_startup_environment(self) -> None:
+        # What we're doing is writing (we hope) someplace safe, be that
+        # an empty, ephemeral filesystem (such as /tmp in any sanely-configured
+        # K8s-based RSP) or in scratch space somewhere.
+        #
+        # Performance is irrelevant.  As we explain to the user, they should
+        # not be using this lab for anything other than immediate problem
+        # amelioration.
+
+        # Try a sanity check and ensure that we are in fact in a broken state.
+        if not self._broken:
             return
-        user = self._env["USER"]
-        home = self._env.get("NUBLADO_HOME", "") or self._env.get("HOME", "")
-        if not home:
-            home = f"/home/{user}"  # We're just guessing at this point.
-        txt = "# Abnormal startup\n"
-        txt += "\nYour Lab container did not start normally.\n"
-        txt += f"Error: `{self._env.get("ABNORMAL_STARTUP_MESSAGE","")}`\n"
-        txt += "\nIf that looks like a file space error, try using the "
-        txt += f"terminal to remove unneeded files in `{home}`.  You can "
-        txt += "use the `quota` command to check how much space is in use. "
-        txt += "After that, shut down and restart the Lab.\n"
-        txt += "\nOtherwise, please open an issue with your RSP site"
-        txt += " administrator.\n"
+
+        txt = self._make_abnormal_landing_markdown()
         s_obj = {"defaultViewers": {"markdown": "Markdown Preview"}}
         s_txt = json.dumps(s_obj)
 
         try:
-            welcome = Path("/tmp/notebooks/tutorials/welcome.md")
+            temphome = self._env.get("SCRATCH_DIR", "/tmp")
+            welcome = Path(temphome) / "notebooks" / "tutorials" / "welcome.md"
             welcome.parent.mkdir(exist_ok=True, parents=True)
             welcome.write_text(txt)
             settings = (
-                Path("/tmp")
+                Path(temphome)
                 / ".jupyter"
                 / "lab"
                 / "user-settings"
@@ -783,21 +778,114 @@ class LabRunner:
             settings.parent.mkdir(exist_ok=True, parents=True)
             settings.write_text(s_txt)
         except Exception:
-            self._logger.exception("Writing abnormal startup files failed")
+            self._logger.exception(
+                "Writing files to report abnormal startup failed"
+            )
+
+    def _make_abnormal_landing_markdown(self) -> str:
+        user = self._env["USER"]
+        home = self._env.get(
+            "NUBLADO_HOME",
+            self._env.get(
+                "HOME",
+                f"/home/{user}",  # Guess, albeit a good one.
+            ),
+        )
+
+        errmsg = self._env.get("ABNORMAL_STARTUP_MESSAGE", "<no message>")
+        errcode = self._env.get("ABNORMAL_STARTUP_ERRORCODE", "EUNKNOWN")
+
+        self._logger.error(
+            f"Abnormal startup: errorcode {errcode}; message {errmsg}"
+        )
+
+        open_an_issue = dedent(
+            f"""
+
+            Please open an issue with your RSP site administrator with the
+            following information: `{errmsg}`
+            """
+        )
+
+        # Start with generic error text.  It's very simple markdown, with a
+        # heading and literal text only.
+
+        txt = dedent("""
+        # Abnormal startup
+
+        Your Lab container did not start normally.
+
+        Do not trust this lab for work you want to keep.
+
+        """)
+
+        # Now add error-specific advice.
+        match errcode:
+            case "EDQUOT":
+                txt += dedent(
+                    f"""
+                    You have exceeded your quota.  Try using the terminal to
+                    remove unneeded files in `{home}`.  You can use the
+                    `quota` command to check your usage.
+
+                    After that, shut down and restart the lab.  If that does
+                    not result in a working lab:
+                    """
+                )
+            case "ENOSPC":
+                txt += dedent(
+                    f"""
+                    You have run out of filesystem space.  Try using the
+                    terminal to remove unneeded files in `{home}`.  Since the
+                    filesystem is full, this may not be something you can
+                    correct.
+
+                    After you have trimmed whatever possible, shut down and
+                    restart the lab.
+
+                    If that does not result in a working lab:
+                    """
+                )
+            case "EROFS" | "EACCES":
+                txt += dedent(
+                    """
+                    You do not have permission to write.  Ask your RSP
+                    administrator to check ownership and permissions on your
+                    directories.
+                    """
+                )
+            case "EBADENV":
+                txt += dedent(
+                    """
+                    You are missing environment variables necessary for RSP
+                    operation.
+                    """
+                )
+            case _:
+                pass
+        txt += dedent(open_an_issue)
+        return txt
 
     def _start(self) -> None:
-        abnormal = bool(self._env.get("ABNORMAL_STARTUP", ""))
         log_level = "DEBUG" if self._debug else "INFO"
         notebook_dir = f"{self._home!s}"
-        if abnormal:
+        if self._broken:
             self._logger.warning(
                 f"Abnormal startup: {self._env['ABNORMAL_STARTUP_MESSAGE']}"
             )
-            self._make_abnormal_landing_page()
-            self._logger.warning("Launching with homedir='/tmp'")
-            self._env["HOME"] = "/tmp"
-            os.environ["HOME"] = "/tmp"
-            notebook_dir = "/tmp"
+            self._make_abnormal_startup_environment()
+            #
+            # We will check to see if we got SCRATCH_DIR set before we broke,
+            # and if so, use that, which would be a user-specific path on a
+            # scratch filesystem.  If we didn't, we just use "/tmp" and hope
+            # for the best.  Any reasonably-configured RSP running under K8s
+            # will not have a shared "/tmp".
+            #
+            temphome = self._env.get("SCRATCH_DIR", "/tmp")
+            self._logger.warning(f"Launching with homedir='{temphome}'")
+            self._env["HOME"] = temphome
+            os.environ["HOME"] = temphome
+            notebook_dir = temphome
 
         cmd = [
             "jupyterhub-singleuser",
