@@ -8,6 +8,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+import yaml
 
 import lsst.rsp
 from lsst.rsp.startup.services.labrunner import LabRunner
@@ -265,6 +266,66 @@ def test_copy_butler_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     assert cp["default"]["aws_secret_access_key"] == "key01"
     assert cp["secondary"]["aws_secret_access_key"] == "key02"
     assert cp["tertiary"]["aws_secret_access_key"] == "key03"
+
+
+@pytest.mark.usefixtures("_rsp_env")
+def test_dask_config() -> None:
+    newlink = "{JUPYTERHUB_PUBLIC_URL}proxy/{port}/status"
+
+    # First, just see if we create the default proxy settings.
+    lr = LabRunner()
+    dask_dir = lr._home / ".config" / "dask"
+    assert not dask_dir.exists()
+    lr._setup_dask()
+    assert dask_dir.exists()
+    def_file = dask_dir / "dashboard.yaml"
+    assert def_file.exists()
+    obj = yaml.safe_load(def_file.read_text())
+    assert obj["distributed"]["dashboard"]["link"] == newlink
+
+    def_file.unlink()
+
+    # Now test that we convert an old-style one to a user-domain config
+    old_file = dask_dir / "lsst_dask.yml"
+    assert not old_file.exists()
+
+    obj["distributed"]["dashboard"]["link"] = (
+        "{EXTERNAL_INSTANCE_URL}{JUPYTERHUB_SERVICE_PREFIX}proxy/{port}/status"
+    )
+    old_file.write_text(yaml.dump(obj, default_flow_style=False))
+
+    assert not def_file.exists()
+    assert old_file.exists()
+
+    lr._setup_dask()  # Should replace the text.
+    obj = yaml.safe_load(old_file.read_text())
+    assert obj["distributed"]["dashboard"]["link"] == newlink
+
+    old_file.unlink()
+    assert not old_file.exists()
+
+    # Test that we remove empty dict keys
+    nullobj = {"key1": {"key2": {"key3": None}}}
+    assert lr._flense_dict(nullobj) is None
+
+    fl_file = dask_dir / "flense.yaml"
+    assert not fl_file.exists()
+    fl_file.write_text(yaml.dump(nullobj, default_flow_style=False))
+    assert fl_file.exists()
+
+    cm_file = dask_dir / "Comment.yaml"
+    assert not cm_file.exists()
+    cm_file.write_text("# Nothing but commentary\n")
+    assert cm_file.exists()
+
+    assert not def_file.exists()
+
+    # This should create the defaults, and should remove the flensed
+    # config and the only-comments file.
+    lr._setup_dask()
+    assert not fl_file.exists()
+    assert not cm_file.exists()
+    assert def_file.exists()
 
 
 @pytest.mark.usefixtures("_rsp_env")

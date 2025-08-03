@@ -16,6 +16,7 @@ from typing import Any
 from urllib.parse import parse_qsl, urlparse
 
 import structlog
+import yaml
 
 from .... import get_access_token, get_digest
 from ....utils import get_jupyterlab_config_dir, get_runtime_mounts_dir
@@ -468,6 +469,7 @@ class LabRunner:
     def _copy_files_to_user_homedir(self) -> None:
         self._logger.debug("Copying files to user home directory")
         self._copy_butler_credentials()
+        self._setup_dask()
         self._copy_logging_profile()
         self._copy_dircolors()
         self._copy_etc_skel()
@@ -533,6 +535,140 @@ class LabRunner:
         with home_pgpass.open("w") as f:
             for connection in config:
                 f.write(f"{connection}:{config[connection]}\n")
+
+    def _setup_dask(self) -> None:
+        self._logger.debug("Setting up dask dashboard proxy information")
+        cfgdir = self._home / ".config" / "dask"
+        replaced = False
+        if cfgdir.is_dir():
+            replaced = self._replace_outdated_proxy(cfgdir)
+        if not replaced:
+            self._inject_new_proxy(cfgdir / "dashboard.yaml")
+
+    def _replace_outdated_proxy(self, cfgdir: Path) -> bool:
+        retval = False
+        for suffix in ("yaml", "yml"):
+            try:
+                files = cfgdir.glob(f"*.{suffix}")
+                for fl in files:
+                    obj = yaml.safe_load(fl.read_text())
+                    flensed = self._flense_dict(obj) if obj else None
+                    if not flensed:
+                        self._logger.warning(
+                            f"{fl} is empty after flensing; removing"
+                        )
+                        fl.unlink()
+                        continue
+                    # Look for "distributed.dashboard.link"
+                    # The old link is not correct for per-user domains.
+                    # It needs to become {JUPYTERHUB_PUBLIC_URL}
+                    old = "{EXTERNAL_INSTANCE_URL}{JUPYTERHUB_SERVICE_PREFIX}"
+                    new = "{JUPYTERHUB_PUBLIC_URL}"
+                    try:
+                        val = flensed["distributed"]["dashboard"]["link"]
+                        if not isinstance(val, str):
+                            self._logger.warning(
+                                "distributed.dashboard.link is not a string"
+                            )
+                            continue
+                    except KeyError:
+                        # We don't have the structure
+                        self._logger.debug(
+                            f"{fl!s} does not contain"
+                            " distributed.dashboard.link"
+                        )
+                        continue
+                    if val.find(old) < 0:
+                        # The structure is there but doesn't have the
+                        # old-style link.
+                        self._logger.debug(f"{val} does not contain {old}")
+                        continue
+                    newval = val.replace(old, new)
+                    flensed["distributed"]["dashboard"]["link"] = newval
+                    self._logger.info(f"Replaced link in {fl!s}: {old}->{new}")
+                    fl.write_text(yaml.dump(flensed, default_flow_style=False))
+                    retval = True
+            except Exception:
+                if fl:
+                    self._logger.exception(f"Failed to read/write {fl!s}")
+                else:
+                    self._logger.exception(f"Failed to load yaml from {files}")
+        return retval
+
+    def _inject_new_proxy(self, tgt: Path) -> None:
+        # Conventional for RSP.
+        parent = tgt.parent
+        try:
+            parent.mkdir(parents=True, exist_ok=True)
+        except FileExistsError:
+            self._logger.exception(
+                f"{tgt!s} exists and is not a directory; aborting"
+            )
+            return
+        newlink = "{JUPYTERHUB_PUBLIC_URL}proxy/{port}/status"
+        goodlink = {"distributed": {"dashboard": {"link": newlink}}}
+        if tgt.exists():
+            try:
+                obj = yaml.safe_load(tgt.read_text())
+                newobj = self._replace_proxy_link(obj, goodlink)
+                if newobj:
+                    tgt.write_text(yaml.dump(newobj, default_flow_style=False))
+                else:
+                    self._logger.warning(f"Removing {tgt!s} because empty")
+                    tgt.unlink()
+            except Exception:
+                self._logger.exception(f"Failed to load {tgt!s}")
+        try:
+            tgt.write_text(yaml.dump(goodlink, default_flow_style=False))
+        except Exception:
+            self._logger.exception(f"Failed to write {tgt!s}")
+
+    def _replace_proxy_link(
+        self,
+        obj: dict[str, Any],
+        goodlink: dict[str, dict[str, dict[str, str]]],
+    ) -> dict[str, Any]:
+        flensed = self._flense_dict(obj)
+        if flensed is None:
+            flensed = goodlink
+        newlink = goodlink["distributed"]["dashboard"]["link"]
+        try:
+            current = flensed["distributed"]["dashboard"]["link"]
+            if current == newlink:
+                self._logger.debug("dask dashboard link is already correct")
+                return flensed  # Nothing to do.
+            self._logger.warning(
+                f"Current link is {current}; replacing with {newlink}"
+            )
+        except KeyError:
+            pass  # Setting doesn't currently exist.
+        except Exception:
+            self._logger.exception(f"Failed to parse {flensed}")
+        flensed.update(goodlink)
+        return flensed
+
+    def _flense_dict(
+        self, obj: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
+        """Recursively walk a dict; any place a null value is found, it
+        and its corresponding key are removed.
+        """
+        if not obj:
+            return None
+        retval: dict[str, Any] = {}
+        keylist = list(obj.keys())
+        for keyent in keylist:
+            val = obj[keyent]
+            if val is None:
+                continue
+            if not isinstance(val, dict):
+                retval[keyent] = val
+                continue
+            flensed = self._flense_dict(val)
+            if flensed is None:
+                continue
+            retval[keyent] = val
+        return retval if retval else None
 
     def _copy_logging_profile(self) -> None:
         self._logger.debug("Copying logging profile if needed")
