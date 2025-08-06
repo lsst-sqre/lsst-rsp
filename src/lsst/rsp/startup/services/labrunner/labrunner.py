@@ -559,9 +559,20 @@ class LabRunner:
                         )
                         fl.unlink()
                         continue
+
                     # Look for "distributed.dashboard.link"
-                    # The old link is not correct for per-user domains.
-                    # It needs to become {JUPYTERHUB_PUBLIC_URL}
+                    # It may have an older, non-user-domain-aware link
+                    # in it, and if so, then we need to replace it
+                    # with the newer, user-domain-aware one.
+                    #
+                    # Dask does the template-from-environment substitution
+                    # so these are just strings.  The point is that "old"
+                    # is not correct in a user-domain-aware world, but
+                    # "new" works in either case (and also is something
+                    # JupyterHub gives us for free, and does not rely on our
+                    # very-RSP-specific-and-going-away-with-service-discovery
+                    # EXTERNAL_INSTANCE_URL variable).
+
                     old = "{EXTERNAL_INSTANCE_URL}{JUPYTERHUB_SERVICE_PREFIX}"
                     new = "{JUPYTERHUB_PUBLIC_URL}"
                     try:
@@ -625,7 +636,7 @@ class LabRunner:
 
     def _replace_proxy_link(
         self,
-        obj: dict[str, Any],
+        obj: dict[str, Any] | None,
         goodlink: dict[str, dict[str, dict[str, str]]],
     ) -> dict[str, Any]:
         flensed = self._flense_dict(obj)
@@ -667,7 +678,7 @@ class LabRunner:
             flensed = self._flense_dict(val)
             if flensed is None:
                 continue
-            retval[keyent] = val
+            retval[keyent] = flensed
         return retval if retval else None
 
     def _copy_logging_profile(self) -> None:
