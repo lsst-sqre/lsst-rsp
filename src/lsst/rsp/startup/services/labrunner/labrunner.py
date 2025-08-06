@@ -130,7 +130,14 @@ class LabRunner:
         self._logger.debug("User environment relocation requested")
         now = datetime.datetime.now(datetime.UTC).strftime("%Y%m%d%H%M%S")
         reloc = self._home / f".user_env.{now}"
-        for candidate in ("cache", "conda", "eups", "local", "jupyter"):
+        for candidate in (
+            "cache",
+            "conda",
+            "config",
+            "eups",
+            "local",
+            "jupyter",
+        ):
             c_path = self._home / f".{candidate}"
             if c_path.is_dir():
                 if not reloc.is_dir():
