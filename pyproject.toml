@@ -45,6 +45,7 @@ provision-landing-page  = "lsst.rsp.startup.cli:provision_landing_page"
 dev = [
     # Typing
     "types-deprecated",
+    "types-pyyaml",
     "types-requests",
     # Testing
     "coverage[toml]",
