@@ -310,6 +310,7 @@ def test_dask_config() -> None:
 
     fl_file = dask_dir / "flense.yaml"
     assert not fl_file.exists()
+
     fl_file.write_text(yaml.dump(nullobj, default_flow_style=False))
     assert fl_file.exists()
 
@@ -326,6 +327,12 @@ def test_dask_config() -> None:
     assert not fl_file.exists()
     assert not cm_file.exists()
     assert def_file.exists()
+
+    # Test that we created a backup of the null file and the commentary
+    fl_bk = dask_dir.glob("flense.yaml.*")
+    assert len(list(fl_bk)) == 1
+    cm_bk = dask_dir.glob("Comment.yaml.*")
+    assert len(list(cm_bk)) == 1
 
 
 @pytest.mark.usefixtures("_rsp_env")
