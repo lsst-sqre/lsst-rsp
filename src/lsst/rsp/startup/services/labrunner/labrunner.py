@@ -601,7 +601,7 @@ class LabRunner:
         retval = False
 
         for suffix in ("yaml", "yml"):
-            files = cfgdir.glob(f"*.{suffix}")
+            files = list(cfgdir.glob(f"*.{suffix}"))
             if files:
                 for fl in files:
                     today = (
