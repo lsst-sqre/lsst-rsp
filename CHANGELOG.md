@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.9.6'></a>
+## 0.9.6 (2025-08-15)
+
+### New features
+
+- We now attempt to detect leftover, no longer correct dask config and correct it so the dask dashboard doesn't present incorrect information.
+
 <a id='changelog-0.9.5'></a>
 ## 0.9.5 (2025-07-03)
 
