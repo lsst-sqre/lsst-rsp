@@ -23,12 +23,12 @@ classifiers = [
 
 requires-python = ">=3.12"
 dependencies = [
-    "Deprecated<2",
-    "IPython<9",
-    "pyvo>=1.5.0,<2",
-    "httpx<0.28",
+    "Deprecated",
+    "IPython",
+    "pyvo",
+    "httpx",
     "structlog",  # Uses CalVer, not SemVer
-    "symbolicmode<3",
+    "symbolicmode",
     "xmltodict"
 ]
 dynamic = ["version"]
