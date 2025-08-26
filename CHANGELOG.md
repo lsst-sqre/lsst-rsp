@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.9.7'></a>
+## 0.9.7 (2025-08-26)
+
+### Other changes
+
+- Unpinned dependencies. We downgraded ipython globally in sciplat-lab and we should not have. Finding the cases when we really need to pin something back will be rarer than stumbing over actually-incompatible upgrades.
+
 <a id='changelog-0.9.6'></a>
 ## 0.9.6 (2025-08-15)
 
