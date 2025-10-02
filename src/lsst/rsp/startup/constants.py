@@ -5,8 +5,8 @@ from pathlib import Path
 __all__ = [
     "APP_NAME",
     "ETC_PATH",
-    "PREVIOUS_LOGGING_CHECKSUMS",
     "MAX_NUMBER_OUTPUTS",
+    "PREVIOUS_LOGGING_CHECKSUMS",
 ]
 
 APP_NAME = "nublado"

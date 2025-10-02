@@ -41,7 +41,7 @@ def format_bytes(n: int) -> str:
         return "%0.2f MB" % (n / 1e6)
     if n > 1e3:
         return "%0.2f kB" % (n / 1000)
-    return "%d B" % n
+    return f"{n:d} B"
 
 
 def get_hostname() -> str:

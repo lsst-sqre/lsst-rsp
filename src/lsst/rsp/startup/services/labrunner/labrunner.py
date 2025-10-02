@@ -253,9 +253,7 @@ class LabRunner:
         env_v = "DAF_BUTLER_CACHE_DIRECTORY"
         dbcd = self._env.get(env_v, "")
         if dbcd:
-            self._logger.debug(
-                f"Not setting {env_v}: already set to" f" {dbcd}"
-            )
+            self._logger.debug(f"Not setting {env_v}: already set to {dbcd}")
             return
         temp_path = self._check_user_scratch_subdir(Path("butler_cache"))
         if temp_path:
@@ -274,8 +272,7 @@ class LabRunner:
             cpu_limit = int(float(self._env.get("CPU_LIMIT", "1")))
         except ValueError:
             cpu_limit = 1
-        if cpu_limit < 1:
-            cpu_limit = 1
+        cpu_limit = max(cpu_limit, 1)
         cpu_limit_str = str(cpu_limit)
         for vname in (
             "CPU_LIMIT",
@@ -533,8 +530,8 @@ class LabRunner:
             connection, passwd = line.rsplit(":", maxsplit=1)
             config[connection] = passwd.rstrip()
         with home_pgpass.open("w") as f:
-            for connection in config:
-                f.write(f"{connection}:{config[connection]}\n")
+            for connection, passwd in config.items():
+                f.write(f"{connection}:{passwd}\n")
 
     def _setup_dask(self) -> None:
         self._logger.debug("Setting up dask dashboard proxy information")
@@ -978,10 +975,10 @@ class LabRunner:
             "CULL_TERMINAL_INTERVAL": "TerminalManager.cull_interval",
         }
         result: list[str] = []
-        for setting in timeout_map:
-            val = self._env.get(setting, "")
+        for envvar, setting in timeout_map.items():
+            val = self._env.get(envvar, "")
             if val:
-                result.append(f"--{timeout_map[setting]}={val}")
+                result.append(f"--{setting}={val}")
         return result
 
     def _make_abnormal_startup_environment(self) -> None:
