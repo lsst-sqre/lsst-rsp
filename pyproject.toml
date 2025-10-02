@@ -106,7 +106,7 @@ exclude_lines = [
 [tool.mypy]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
-exclude = "tests/support/files"
+exclude = "tests/data/files"
 ignore_missing_imports = true
 local_partial_types = true
 no_implicit_reexport = true
@@ -141,7 +141,7 @@ extend = "ruff-shared.toml"
 "src/lsst/rsp/startup/services/labrunner/labrunner.py" = [
     "S108",    # We really do mean explicitly `/tmp`
 ]
-"tests/support/files/**" = [
+"tests/data/files/**" = [
     "INP001",  # these aren't real Python modules
 ]
 "tests/startup_test.py" = [
