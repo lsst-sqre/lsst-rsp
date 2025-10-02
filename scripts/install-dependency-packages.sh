@@ -21,7 +21,3 @@ apt-get update
 # Install git, which is required by setuptools_scm to get a correct version
 # number when the package is installed.
 apt-get -y install --no-install-recommends git
-
-# Delete cached files we don't need any more to reduce the layer size.
-apt-get clean
-rm -rf /var/lib/apt/lists/*
