@@ -25,24 +25,7 @@ name: Python CI
     types: [published]
 
 jobs:
-  lint:
-
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-
-      - name: Run pre-commit
-        uses: pre-commit/action@v3.0.1
-
   test:
-
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -51,18 +34,22 @@ jobs:
         python:
           - "3.12"
           - "3.13"
+
     steps:
       - uses: actions/checkout@v5
 
-      - name: Run tox
-        uses: lsst-sqre/run-tox@v1
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
-          tox-envs: "py,typing"
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Run tox
+        run: uv run --only-group=tox tox run -e lint,typing,py,coverage-report
 
   test-packaging:
-
     name: Test packaging
     runs-on: ubuntu-latest
 
@@ -78,7 +65,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [test]
     timeout-minutes: 15
 
     # Only do Docker builds of tagged releases and pull requests from ticket
@@ -95,6 +82,7 @@ jobs:
         with:
           # Full history is required for setuptools_scm versioning.
           fetch-depth: 0
+
       - uses: lsst-sqre/build-and-push-to-ghcr@v1
         id: build-rsp-landing-page-provisioner
         with:
@@ -133,14 +121,13 @@ jobs:
           echo Pushed ghcr.io/${{ github.repository }}-rsp-landing-page-provisioner:${{ steps.build-inithome.outputs.tag }}
 
   pypi:
-
     # This job requires set up:
     # 1. Set up a trusted publisher for PyPI
     # 2. Set up a "pypi" environment in the repository
     # See https://github.com/lsst-sqre/build-and-publish-to-pypi
     name: Upload release to PyPI
     runs-on: ubuntu-latest
-    needs: [lint, test, test-packaging]
+    needs: [test, test-packaging]
     environment:
       name: pypi
       url: https://pypi.org/p/lsst-rsp

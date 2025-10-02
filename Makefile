@@ -1,18 +1,19 @@
 .PHONY: help
 help:
 	@echo "Make targets for lsst-rsp:"
-	@echo "make clean - Remove generated files"
 	@echo "make init - Set up dev environment (install pre-commit hooks)"
-
-.PHONY: clean
-clean:
-	rm -rf .tox
+	@echo "make update - Update pre-commit dependencies and run make init"
+	@echo "make update-deps - Update pre-commit dependencies"
 
 .PHONY: init
 init:
-	pip install --upgrade uv
-	uv pip install --upgrade pip tox tox-uv pre-commit
-	uv pip install --editable ".[dev]"
-	rm -rf .tox
-	pre-commit install
+	uv sync --frozen --all-groups
+	uv run pre-commit install
 
+.PHONY: update
+update: update-deps init
+
+.PHONY: update-deps
+update-deps:
+	uv lock --upgrade
+	uv run --only-group=lint pre-commit autoupdate

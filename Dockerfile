@@ -4,52 +4,62 @@
 # It will ensure that necessary landing page symlinks are in place to allow
 # opening a splash screen on lab start.
 #
-# Since it runs as an init container on every spawn, we want to keep the image
-# small. It therefore does not update base image packages for security fixes
-# and instead relies on the Python container itself being rebuilt periodically
-# with new minor versions of Python, which will result in PRs from Dependabot.
+# This Dockerfile has three stages:
 #
-# This Dockerfile has two stages:
-#
+# base-image
+#   Updates the base Python image with security patches and common system
+#   packages. This image becomes the base of all other images.
 # install-image
-#   - Installs git so that setuptools_scm can install the app.
-#   - Installs the app into the virtual environment.
+#   Installs third-party dependencies and the application into a virtual
+#   environment. This virtual environment is ideal for copying across
+#   build stages.
 # runtime-image
 #   - Copies the virtual environment into place.
-#   - Sets up the entrypoint.
+#   - Runs a non-root user.
+#   - Sets up the entrypoint and port.
 
-# This is just an alias to avoid repeating the base image.
-FROM python:3.13.3-slim-bookworm AS base-image
+FROM python:3.13.7-slim-trixie AS base-image
+
+# Update system packages.
+COPY scripts/install-base-packages.sh .
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    ./install-base-packages.sh && rm ./install-base-packages.sh
 
 FROM base-image AS install-image
 
 # Install uv.
 COPY --from=ghcr.io/astral-sh/uv:0.7.8 /uv /bin/uv
 
-# Install system packages only needed for building dependencies or installing
-# the package.
+# Install some additional packages required for building dependencies.
 COPY scripts/install-dependency-packages.sh .
-RUN ./install-dependency-packages.sh
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    ./install-dependency-packages.sh
 
-# Create a Python virtual environment.
-ENV VIRTUAL_ENV=/opt/venv
-RUN uv venv $VIRTUAL_ENV
+# Disable hard links during uv package installation since we're using a
+# cache on a separate file system.
+ENV UV_LINK_MODE=copy
 
-# Ensure we use the virtualenv.
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+# Install the dependencies.
+WORKDIR /app
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --frozen --no-default-groups --compile-bytecode --no-install-project
 
-# Install lsst-rsp
-COPY . /workdir
-WORKDIR /workdir
-RUN uv pip install --compile-bytecode --no-cache .
+# Install the application itself.
+ADD . /app
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-default-groups --compile-bytecode --no-editable
 
 FROM base-image AS runtime-image
 
 # Copy the virtualenv.
-COPY --from=install-image /opt/venv /opt/venv
+COPY --from=install-image /app/.venv /app/.venv
 
 # Make sure we use the virtualenv.
-ENV PATH="/opt/venv/bin:$PATH"
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Run the application.
 CMD ["provision-landing-page"]
