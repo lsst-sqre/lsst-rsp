@@ -32,15 +32,15 @@ def format_bytes(n: int) -> str:
     '1.23 PB'
     """
     if n > 1e15:
-        return "%0.2f PB" % (n / 1e15)
+        return f"{n / 1e15:0.2f} PB"
     if n > 1e12:
-        return "%0.2f TB" % (n / 1e12)
+        return f"{n / 1e12:0.2f} TB"
     if n > 1e9:
-        return "%0.2f GB" % (n / 1e9)
+        return f"{n / 1e9:0.2f} GB"
     if n > 1e6:
-        return "%0.2f MB" % (n / 1e6)
+        return f"{n / 1e6:0.2f} MB"
     if n > 1e3:
-        return "%0.2f kB" % (n / 1000)
+        return f"{n / 1e3:0.2f} kB"
     return f"{n:d} B"
 
 
