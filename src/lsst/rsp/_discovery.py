@@ -36,6 +36,7 @@ __all__ = [
     "get_influxdb_credentials",
     "get_influxdb_location",
     "get_service_url",
+    "list_influxdb_labels",
 ]
 
 
@@ -217,3 +218,21 @@ def get_service_url(service: str, dataset: str) -> str:
             raise UnknownDatasetError(dataset)
         raise DatasetNotSupportedError(service, dataset)
     return url
+
+
+def list_influxdb_labels() -> list[str]:
+    """List the available InfluxDB labels in this environment.
+
+    Returns
+    -------
+    list of str
+        Labels for InfluxDB databases suitable for passing to
+        `get_influxdb_location` or `get_influxdb_credentials`.
+
+    Raises
+    ------
+    DiscoveryNotAvailableError
+        Raised if no service discovery information is available.
+    """
+    discovery = _get_discovery()
+    return sorted(discovery.get("influxdb_databases", {}).keys())

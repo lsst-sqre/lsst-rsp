@@ -22,6 +22,7 @@ from lsst.rsp import (
     get_influxdb_credentials,
     get_influxdb_location,
     get_service_url,
+    list_influxdb_labels,
 )
 
 from .support.data import data_path, read_test_json
@@ -91,6 +92,13 @@ def test_get_influxdb_credentials(
         get_influxdb_location("unknown")
 
 
+def test_list_influxdb_labels(discovery_path_v1: Path) -> None:
+    discovery = json.loads(discovery_path_v1.read_text())
+    labels = sorted(discovery["influxdb_databases"].keys())
+
+    assert list_influxdb_labels() == labels
+
+
 def test_missing_discovery() -> None:
     with patch.object(_discovery, "_DISCOVERY_PATH", new=Path("/nonexistent")):
         with pytest.raises(DiscoveryNotAvailableError):
@@ -99,6 +107,8 @@ def test_missing_discovery() -> None:
             get_influxdb_location("idfdev_efd")
         with pytest.raises(DiscoveryNotAvailableError):
             get_influxdb_credentials("idfdev_efd")
+        with pytest.raises(DiscoveryNotAvailableError):
+            list_influxdb_labels()
 
 
 def test_invalid_discovery(
@@ -124,3 +134,15 @@ def test_invalid_discovery(
             get_influxdb_location("idfdev_efd")
         with pytest.raises(InvalidDiscoveryError):
             get_influxdb_credentials("idfdev_efd")
+
+
+def test_empty() -> None:
+    empty_path = data_path("discovery/empty.json")
+    with patch.object(_discovery, "_DISCOVERY_PATH", new=empty_path):
+        assert list_influxdb_labels() == []
+        with pytest.raises(UnknownServiceError):
+            get_service_url("sia", "dp1")
+            with pytest.raises(UnknownInfluxDBError):
+                get_influxdb_location("idfdev_efd")
+            with pytest.raises(UnknownInfluxDBError):
+                get_influxdb_credentials("idfdev_efd")

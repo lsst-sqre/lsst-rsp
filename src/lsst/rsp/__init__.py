@@ -8,6 +8,7 @@ from ._discovery import (
     get_influxdb_credentials,
     get_influxdb_location,
     get_service_url,
+    list_influxdb_labels,
 )
 from ._exceptions import (
     DatasetNotSupportedError,
@@ -76,5 +77,6 @@ __all__ = [
     "get_service_url",
     "get_siav2_service",
     "get_tap_service",
+    "list_influxdb_labels",
     "retrieve_query",
 ]
