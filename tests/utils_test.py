@@ -46,13 +46,13 @@ def test_get_service_url(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.usefixtures("_rsp_env")
 def test_get_runtime_mounts_dir() -> None:
-    file_dir = Path(__file__).parent / "support" / "files"
+    file_dir = Path(__file__).parent / "data" / "files"
     mount_dir = get_runtime_mounts_dir()
     assert mount_dir == (file_dir / "etc" / "nublado")
 
 
 @pytest.mark.usefixtures("_rsp_env")
 def test_get_jupyterlab_config_dir() -> None:
-    file_dir = Path(__file__).parent / "support" / "files"
+    file_dir = Path(__file__).parent / "data" / "files"
     cfg_dir = get_jupyterlab_config_dir()
     assert cfg_dir == (file_dir / "jupyterlab")

@@ -21,11 +21,11 @@ def _rsp_paths(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     # and the "import lsst.rsp.constants" case.
     with patch(
         "lsst.rsp.startup.services.labrunner.labrunner.ETC_PATH",
-        (Path(__file__).parent / "support" / "files" / "etc"),
+        (Path(__file__).parent / "data" / "files" / "etc"),
     ):
         with patch(
             "lsst.rsp.startup.constants.ETC_PATH",
-            (Path(__file__).parent / "support" / "files" / "etc"),
+            (Path(__file__).parent / "data" / "files" / "etc"),
         ):
             yield
 
@@ -34,7 +34,7 @@ def _rsp_paths(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 def _rsp_env(
     _rsp_paths: None, monkeypatch: pytest.MonkeyPatch
 ) -> Iterator[None]:
-    file_dir = Path(__file__).parent / "support" / "files"
+    file_dir = Path(__file__).parent / "data" / "files"
     template = file_dir / "homedir"
     monkeypatch.setenv(
         "NUBLADO_RUNTIME_MOUNTS_DIR", str(file_dir / "etc" / "nublado")
