@@ -2,6 +2,23 @@
 
 from importlib.metadata import PackageNotFoundError, version
 
+from ._discovery import (
+    InfluxDBCredentials,
+    InfluxDBLocation,
+    get_influxdb_credentials,
+    get_influxdb_location,
+    get_service_url,
+    list_influxdb_labels,
+)
+from ._exceptions import (
+    DatasetNotSupportedError,
+    DiscoveryNotAvailableError,
+    InvalidDiscoveryError,
+    TokenNotAvailableError,
+    UnknownDatasetError,
+    UnknownInfluxDBError,
+    UnknownServiceError,
+)
 from .catalog import (
     get_catalog,
     get_obstap_service,
@@ -32,8 +49,17 @@ except PackageNotFoundError:
 
 
 __all__ = [
+    "DatasetNotSupportedError",
+    "DiscoveryNotAvailableError",
     "IPythonHandler",
+    "InfluxDBCredentials",
+    "InfluxDBLocation",
+    "InvalidDiscoveryError",
     "RSPClient",
+    "TokenNotAvailableError",
+    "UnknownDatasetError",
+    "UnknownInfluxDBError",
+    "UnknownServiceError",
     "__version__",
     "format_bytes",
     "forward_lsst_log",
@@ -42,11 +68,15 @@ __all__ = [
     "get_datalink_result",
     "get_digest",
     "get_hostname",
+    "get_influxdb_credentials",
+    "get_influxdb_location",
     "get_node",
     "get_obstap_service",
     "get_pod",
     "get_query_history",
+    "get_service_url",
     "get_siav2_service",
     "get_tap_service",
+    "list_influxdb_labels",
     "retrieve_query",
 ]
