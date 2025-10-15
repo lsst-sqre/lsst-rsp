@@ -2,7 +2,7 @@
 
 import contextlib
 import os
-from collections.abc import Generator, Iterator
+from collections.abc import Iterator
 from pathlib import Path
 from shutil import copytree
 from tempfile import TemporaryDirectory
@@ -10,15 +10,12 @@ from unittest.mock import patch
 
 import pytest
 
-from lsst.rsp import _discovery
 from lsst.rsp.startup.storage.command import Command
 
 
 @pytest.fixture
-def discovery_path_v1() -> Generator[Path]:
-    discovery_path = Path(__file__).parent / "data" / "discovery" / "v1.json"
-    with patch.object(_discovery, "_DISCOVERY_PATH", new=discovery_path):
-        yield discovery_path
+def discovery_v1_path() -> Path:
+    return Path(__file__).parent / "data" / "discovery" / "v1.json"
 
 
 # Things for startup/labrunner
