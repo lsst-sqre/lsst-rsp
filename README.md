@@ -39,56 +39,31 @@ tox list
 ### Developing on the RSP
 
 The `LSST` kernel in the RSP `sciplat-lab` image already has a release version of `lsst-rsp` included.
-If you want to use a development version, you must first create a virtualenv, install the necessary packages, and then create a JupyterLab kernel pointing to it.
-
+If you want to use a development version, you can install a newer version locally in your home directory.
 In a terminal session, run the following commands:
 
 ```bash
-VENV="lsst_rsp"
-mkdir -p ${HOME}/venvs
-python -m venv ${HOME}/venvs/${VENV}
-. ${HOME}/venvs/${VENV}/bin/activate
 mkdir -p ${HOME}/src
 cd ${HOME}/src
 git clone https://github.com/lsst-sqre/lsst-rsp
-# or git clone git@github.com:lsst-sqre/lsst-rsp.git if you prefer
 cd lsst-rsp
-make init
-pip install ipykernel
-python -m ipykernel install --user --name=${VENV}
+pip install .
 ```
 
-Now you will need to shut down your lab and restart it in order to pick up the new lsst-rsp installation.
+You can now import functions from `lsst.rsp` in a notebook and should see the new version of the code.
 
-Once you're in your new container, you will notice that you have a new kernel named `lsst_rsp`.
-Now you have an editable version installed in your custom kernel, and you can run all the usual tox environments.
-
-If you start a notebook with your custom kernel, you can see the development version with:
-
-```python
-import lsst.rsp
-
-lsst.rsp.__version__
-```
-
-You will still need to restart the kernel to pick up changes you make to your copy of `lsst_rsp`.
+If you already imported functions from `lsst.rsp` in your session, you will need to restart your kernel before the new version of `lsst.rsp` will be visible.
+If you make any additional local changes, you will need to restart the kernel to see those changes.
 
 ### Uninstalling a development version from the RSP
 
-In a terminal window, run the following:
+Once you have installed a development version, that version will shadow the release version until you explicitly uninstall it.
+You will therefore want to uninstall the development version once you're done testing.
+To do that, run the following in a terminal window:
 
 ```bash
-. $HOME/venvs/lsst_rsp/bin/activate
-jupyter kernelspec uninstall lsst_rsp
+pip uninstall lsst-rsp
 ```
 
-Respond `y` and then `deactivate` to the resulting prompts.
-
-Shut down and restart your notebook as before.
-When you come back in, in a terminal window, run:
-
-```bash
-rm -rf $HOME/venvs/lsst_rsp
-```
-
-You cannot remove the virtualenv directory until you have restarted the JupyterLab container, since otherwise JupyterLab will be holding some files open for the running kernel.
+You will be prompted to confirm the removal of your local version.
+As before, after running this command, you will need to restart your kernel to return to using the released version.
