@@ -17,7 +17,6 @@ from typing import Any
 import httpx
 
 from ._exceptions import (
-    DatasetNotSupportedError,
     DiscoveryNotAvailableError,
     InvalidDiscoveryError,
     TokenNotAvailableError,
@@ -227,26 +226,23 @@ def get_service_url(
 
     Raises
     ------
-    DatasetNotSupportedError
-        Raised if this service doesn't support this dataset.
     DiscoveryNotAvailableError
         Raised if no service discovery information is available.
     UnknownDatasetError
         Raised if this dataset is not present in the environment.
     UnknownServiceError
-        Raised if this service is not present in the environment.
+        Raised if this service is not present in the environment for this
+        dataset.
     """
     if not discovery_v1_path:
         discovery_v1_path = _DISCOVERY_PATH
     discovery = _get_discovery(discovery_v1_path)
-    datasets = discovery.get("services", {}).get("data", {}).get(service)
-    if not datasets:
-        raise UnknownServiceError(service)
-    url = datasets.get(dataset, {}).get("url")
+    dataset_info = discovery.get("datasets", {}).get(dataset)
+    if not dataset_info:
+        raise UnknownDatasetError(dataset)
+    url = dataset_info.get("services", {}).get(service, {}).get("url")
     if not url:
-        if discovery.get("datasets", {}).get(dataset) is None:
-            raise UnknownDatasetError(dataset)
-        raise DatasetNotSupportedError(service, dataset)
+        raise UnknownServiceError(service, dataset)
     return url
 
 

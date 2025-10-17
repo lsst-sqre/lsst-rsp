@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 __all__ = [
-    "DatasetNotSupportedError",
     "DiscoveryNotAvailableError",
     "InvalidDiscoveryError",
     "TokenNotAvailableError",
@@ -13,14 +12,6 @@ __all__ = [
     "UnknownInfluxDBError",
     "UnknownServiceError",
 ]
-
-
-class DatasetNotSupportedError(Exception):
-    """Requested service does not support the requested dataset."""
-
-    def __init__(self, service: str, dataset: str) -> None:
-        msg = f"Service {service} does not support dataset {dataset}"
-        super().__init__(msg)
 
 
 class DiscoveryNotAvailableError(Exception):
@@ -63,6 +54,9 @@ class UnknownInfluxDBError(Exception):
 class UnknownServiceError(Exception):
     """Requested service is not present in this environment."""
 
-    def __init__(self, service: str) -> None:
-        msg = f"Service {service} is not present in this environment"
+    def __init__(self, service: str, dataset: str) -> None:
+        msg = (
+            f"Service {service} is not present in this environment for"
+            f" dataset {dataset}"
+        )
         super().__init__(msg)
