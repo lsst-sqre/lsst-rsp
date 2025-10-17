@@ -11,7 +11,6 @@ from ._discovery import (
     list_influxdb_labels,
 )
 from ._exceptions import (
-    DatasetNotSupportedError,
     DiscoveryNotAvailableError,
     InvalidDiscoveryError,
     TokenNotAvailableError,

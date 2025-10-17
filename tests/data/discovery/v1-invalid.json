@@ -1,7 +1,11 @@
 {
   "datasets": {
     "dp02": {
-      "butler_config": "https://data.example.com/api/butler/repo/dp02/butler.yaml"
+      "butler_config": "https://data.example.com/api/butler/repo/dp02/butler.yaml",
+      "services": {
+        "cutout": {
+        }
+      }
     },
     "dp03": {},
     "dp1": {
@@ -13,14 +17,6 @@
       "database": "efd",
       "schema_registry": "http://sasquatch-schema-registry.sasquatch:8081/",
       "credentials_url": "https://example.com/repertoire/discovery/influxdb/idfdev_efd"
-    }
-  },
-  "services": {
-    "data": {
-      "cutout": {
-        "dp02": {
-        }
-      }
     }
   }
 }

@@ -11,7 +11,6 @@ import respx
 from httpx import Request, Response
 
 from lsst.rsp import (
-    DatasetNotSupportedError,
     DiscoveryNotAvailableError,
     InvalidDiscoveryError,
     TokenNotAvailableError,
@@ -31,16 +30,16 @@ from .support.data import data_path, read_test_json
 def test_get_service_url(discovery_v1_path: Path) -> None:
     discovery = json.loads(discovery_v1_path.read_text())
 
-    expected = discovery["services"]["data"]["sia"]["dp1"]["url"]
+    expected = discovery["datasets"]["dp1"]["services"]["sia"]["url"]
     result = get_service_url("sia", "dp1", discovery_v1_path=discovery_v1_path)
     assert result == expected
-    expected = discovery["services"]["data"]["cutout"]["dp02"]["url"]
+    expected = discovery["datasets"]["dp02"]["services"]["cutout"]["url"]
     result = get_service_url(
         "cutout", "dp02", discovery_v1_path=discovery_v1_path
     )
     assert result == expected
 
-    with pytest.raises(DatasetNotSupportedError):
+    with pytest.raises(UnknownServiceError):
         get_service_url("sia", "dp03", discovery_v1_path=discovery_v1_path)
 
     with pytest.raises(UnknownDatasetError):
@@ -142,7 +141,7 @@ def test_invalid_discovery(
     credentials_url = data["credentials_url"]
     respx_mock.get(credentials_url).mock(side_effect=handler)
 
-    with pytest.raises(DatasetNotSupportedError):
+    with pytest.raises(UnknownServiceError):
         get_service_url("cutout", "dp02", discovery_v1_path=invalid_path)
     with pytest.raises(InvalidDiscoveryError):
         get_influxdb_location("idfdev_efd", discovery_v1_path=invalid_path)
@@ -154,9 +153,9 @@ def test_empty() -> None:
     empty_path = data_path("discovery/empty.json")
     with patch.object(_discovery, "_DISCOVERY_PATH", new=empty_path):
         assert list_influxdb_labels() == []
-        with pytest.raises(UnknownServiceError):
+        with pytest.raises(UnknownDatasetError):
             get_service_url("sia", "dp1")
-            with pytest.raises(UnknownInfluxDBError):
-                get_influxdb_location("idfdev_efd")
-            with pytest.raises(UnknownInfluxDBError):
-                get_influxdb_credentials("idfdev_efd")
+        with pytest.raises(UnknownInfluxDBError):
+            get_influxdb_location("idfdev_efd")
+        with pytest.raises(UnknownInfluxDBError):
+            get_influxdb_credentials("idfdev_efd")
