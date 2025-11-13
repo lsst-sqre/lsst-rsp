@@ -1105,7 +1105,7 @@ class LabRunner:
 
     def _start(self) -> None:
         log_level = "DEBUG" if self._debug else "INFO"
-        notebook_dir = f"{self._home!s}"
+        rel_notebook_dir = f"{self._home!s}"[1:]
         if self._broken:
             self._logger.warning(
                 f"Abnormal startup: {self._env['ABNORMAL_STARTUP_MESSAGE']}"
@@ -1122,21 +1122,22 @@ class LabRunner:
             self._logger.warning(f"Launching with homedir='{temphome}'")
             self._env["HOME"] = temphome
             os.environ["HOME"] = temphome
-            notebook_dir = temphome
+            rel_notebook_dir = temphome[1:]
 
         cmd = [
             "jupyterhub-singleuser",
             "--ip=0.0.0.0",
             "--port=8888",
             "--no-browser",
-            f"--notebook-dir={notebook_dir}",
             f"--log-level={log_level}",
+            "--ContentsManager.root_dir=/",
+            f"--ContentsManager.preferred_dir={rel_notebook_dir}",
             "--ContentsManager.allow_hidden=True",
             "--FileContentsManager.hide_globs=[]",
             "--KernelSpecManager.ensure_native_kernel=False",
             "--QtExporter.enabled=False",
-            "--PDFExporter.enabled=False",
-            "--WebPDFExporter.allow_chromium_download=True",
+            "--PDFExporter.enabled=True",
+            "--WebPDFExporter.enabled=False",
             "--MappingKernelManager.default_kernel_name=lsst",
             "--LabApp.check_for_updates_class=jupyterlab.NeverCheckForUpdate",
         ]
