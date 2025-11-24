@@ -28,6 +28,7 @@ dependencies = [
     "pyvo",
     "httpx",
     "pyyaml",
+    "rubin.repertoire",
     "structlog",  # Uses CalVer, not SemVer
     "symbolicmode",
     "xmltodict"
@@ -139,7 +140,10 @@ extend = "ruff-shared.toml"
 "src/lsst/rsp/startup/**" = [
     "S606",    # Sometimes we really mean os.execve(), not subprocess.run()
 ]
-"src/lsst/rsp/startup/services/labrunner/labrunner.py" = [
+"src/lsst/rsp/startup/services/labrunner.py" = [
+    "S108",    # We really do mean explicitly `/tmp`
+]
+"src/lsst/rsp/startup/services/_rspstartup.py" = [
     "S108",    # We really do mean explicitly `/tmp`
 ]
 "tests/data/files/**" = [

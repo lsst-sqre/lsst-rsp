@@ -1,8 +1,9 @@
 """CLI launchers for the Lab Runner and the landing page provisioner."""
 
+import asyncio
 import logging
 
-from .services.labrunner import LabRunner
+from .services import InitContainer, LabRunner
 from .services.landing_page.provisioner import Provisioner
 
 
@@ -10,7 +11,18 @@ def launch_lab() -> None:
     """Make a LabRunner and call its single public method.  All settings are
     in the environment.
     """
-    LabRunner().go()
+    asyncio.run(LabRunner().go())
+
+
+def launch_init_container() -> None:
+    """Make an InitContainer and call its single public method.  All settings
+    are in the environment.
+
+    We never want to raise an exception from here (and the code is fairly
+    careful not to; nevertheless).  If the container fails, we still want
+    to start the user lab, but the experience might be suboptimal.
+    """
+    asyncio.run(InitContainer().go())
 
 
 def provision_landing_page() -> None:

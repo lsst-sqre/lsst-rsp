@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import errno
+import json
 import os
 import subprocess
 from collections.abc import Iterable
@@ -162,5 +163,34 @@ class RSPStartupError(OSError):
         strerror = (
             exc.strerror or os.strerror(errnum) or f"Unknown error {errnum}"
         )
-        winerror = ""  # Change if we ever need windows support
+        winerror = ""  # Change if we ever need windows support.
         return cls(errnum, strerror, exc.filename, winerror, exc.filename2)
+
+    def to_json(self) -> str:
+        """We use this to communicate between the init container and the
+        Lab container.
+
+        If the init container gets an error, we serialize the error, and
+        then we reconstitute it in the Lab container to show an appropriate
+        message to the user.
+        """
+        err = {
+            "errno": self.errno,
+            "strerror": self.strerror,
+            "filename": self.filename,
+            "filename2": self.filename2,
+        }
+        return json.dumps(err)
+
+    @classmethod
+    def from_json(cls, inp: str) -> Self:
+        """Rehydrate error from serialized representation."""
+        obj = json.loads(inp)
+        os_error = OSError(
+            obj["errno"],
+            obj["strerror"],
+            obj["filename"],
+            "",  # Winerror: revisit if we need Windows support
+            obj["filename2"],
+        )
+        return cls.from_os_error(os_error)
