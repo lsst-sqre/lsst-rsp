@@ -31,7 +31,10 @@ class LabRunner(_RSPStartup):
 
     def __init__(self) -> None:
         super().__init__()
-        self._discovery = DiscoveryClient()
+        rep_url = os.getenv("REPERTOIRE_BASE_URL") or (
+            f"{self._env.get('EXTERNAL_INSTANCE_URL')}/repertoire"
+        )
+        self._discovery = DiscoveryClient(base_url=rep_url)
 
     async def go(self) -> None:
         """Start the user lab."""
