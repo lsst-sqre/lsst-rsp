@@ -65,9 +65,35 @@ jobs:
         with:
           upload: false
 
-  multibuild:
+  build-setup:
+    name: Set up multiplatform build
+    runs-on: ubuntu-latest
     needs: [test]
-    timeout-minutes: 15
+    outputs:
+      images: ${{ steps.image_names.outputs.images }}
+
+    steps:
+      - id: image_names
+        env:
+          repo: ${{ github.repository }}
+        run: |
+          reponame=$(echo ${repo} | cut -d '/' -f 2)
+          images=""
+          gar_pref="us-central1.docker.pkg.dev/rubin-shared-services-71ec/sciplat/"
+          # Push under both names to both destinations.
+          for cname in "landing-page-provisioner" "init-container" ; do
+              gar_repo="${gar_pref}${reponame}-${cname}"
+              ghcr_repo="ghcr.io/${repo}-${cname}"
+              both_repos="${gar_repo},${ghcr_repo}"
+              if [ -n "${images}" ] ; then
+                  images="${images},"
+              fi
+              images="${images}${both_repos}"
+          done
+          echo "images=${images} >> ${GITHUB_OUTPUT}"
+
+  multibuild:
+    needs: [build-setup]
     uses: lsst-sqre/multiplatform-build-and-push/.github/workflows/build.yaml@v3
     # Only do Docker builds of tagged releases and pull requests from
     # ticket or user branches. This will still trigger on pull requests
@@ -80,7 +106,7 @@ jobs:
       || startsWith(github.head_ref, 't/')
       || startsWith(github.head_ref, 'u/')
     with:
-      images: ghcr.io/${{ github.repository }}-rsp-landing-page-provisioner,ghcr.io/${{ github.repository }}-rsp-init-container,us-central1-docker.pkg.dev/rubin-shared-services-71ec/sciplat/rsp-landing-page-provisioner,us-central1-docker.pkg.dev/rubin-shared-services-71ec/sciplat/rsp-init-container
+      images: ${{ needs.build-setup.outputs.images }}
 
   pypi:
     # This job requires set up:
