@@ -14,13 +14,13 @@ from urllib.parse import parse_qsl, urlparse
 import yaml
 
 from ... import get_access_token
-from ...constants import (
+from ...utils import get_jupyterlab_config_dir, get_runtime_mounts_dir
+from ..constants import (
     ETC_PATH,
     MAX_NUMBER_OUTPUTS,
     PREVIOUS_LOGGING_CHECKSUMS,
 )
-from ...exceptions import RSPErrorCode, RSPStartupError
-from ...utils import get_jupyterlab_config_dir, get_runtime_mounts_dir
+from ..exceptions import RSPErrorCode, RSPStartupError
 from ._rspstartup import _RSPStartup
 
 
@@ -170,6 +170,7 @@ class InitContainer(_RSPStartup):
         await self._copy_etc_skel()
 
     async def _copy_butler_credentials(self) -> None:
+        self._set_butler_credential_variables()
         if "AWS_SHARED_CREDENTIALS_FILE" in self._env:
             self._merge_aws_creds()
         if "PGPASSFILE" in self._env:

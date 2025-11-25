@@ -149,7 +149,7 @@ extend = "ruff-shared.toml"
 "tests/data/files/**" = [
     "INP001",  # these aren't real Python modules
 ]
-"tests/startup_test.py" = [
+"tests/startup/labrunner_test.py" = [
     "S108",    # We really do mean explicitly `/tmp`
 ]
 

@@ -26,7 +26,7 @@ def _rsp_paths(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     # For each of these, we want to cover both the "from ..constants import"
     # and the "import lsst.rsp.constants" case.
     with patch(
-        "lsst.rsp.startup.services.labrunner.labrunner.ETC_PATH",
+        "lsst.rsp.startup.services.initcontainer.ETC_PATH",
         (Path(__file__).parent / "data" / "files" / "etc"),
     ):
         with patch(
@@ -49,6 +49,7 @@ def _rsp_env(
         "JUPYTERLAB_CONFIG_DIR",
         str(file_dir / "jupyterlab"),
     )
+    monkeypatch.setenv("REPERTOIRE_BASE_URL", "https://example.lsst.cloud")
     with contextlib.suppress(KeyError):
         monkeypatch.delenv("TMPDIR")
         monkeypatch.delenv("DAF_BUTLER_CACHE_DIRECTORY")

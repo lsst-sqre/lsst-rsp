@@ -9,10 +9,10 @@ from textwrap import dedent
 
 from rubin.repertoire import DiscoveryClient
 
-from .... import get_digest
-from ....utils import get_runtime_mounts_dir
-from ...exceptions import RSPErrorCode, RSPStartupError
-from ...models.noninteractive import NonInteractiveExecutor
+from ... import get_digest
+from ...utils import get_runtime_mounts_dir
+from ..exceptions import RSPErrorCode, RSPStartupError
+from ..models.noninteractive import NonInteractiveExecutor
 from ._rspstartup import _RSPStartup
 
 __all__ = ["LabRunner"]
@@ -73,7 +73,7 @@ class LabRunner(_RSPStartup):
         and then set the env variables that rsp-jupyter-extensions will use
         to report the error to the user at Lab startup.
         """
-        super()._set_abnormal_startup()
+        await super()._set_abnormal_startup(exc)
         if not isinstance(exc, RSPStartupError):
             # This will also catch the EUNKNOWN case
             new_exc = RSPStartupError.from_os_error(exc)
@@ -100,7 +100,7 @@ class LabRunner(_RSPStartup):
         self._logger.debug("Configuring environment for JupyterLab process")
         self._set_user()
         await self._set_tmpdir_if_scratch_available()
-        self._set_butler_cache()
+        await self._set_butler_cache()
         self._set_cpu_variables()
         self._set_image_digest()
         self._expand_panda_tilde()
@@ -240,21 +240,29 @@ class LabRunner(_RSPStartup):
             self._logger.debug("Could not get image digest")
 
     def _expand_panda_tilde(self) -> None:
+        # Using Path.expanduser(), while probably more feature-complete,
+        # makes this method very hard to test, and you just end up
+        # monkeypatching Path.expanduser() with something a lot like this
+        # logic.
         self._logger.debug("Expanding tilde in PANDA_CONFIG_ROOT, if needed")
         if "PANDA_CONFIG_ROOT" in self._env:
             # We've already been through set_user(), so USER must be set.
+            username = self._env["USER"]
             path = Path(self._env["PANDA_CONFIG_ROOT"])
-            new_path = Path.expanduser(path)
-            if path != new_path:
+            path_parts = path.parts
+            if path_parts[0] in ("~", f"~{username}"):
+                new_path = Path(self._home, *path_parts[1:])
                 self._logger.debug(
                     f"Replacing PANDA_CONFIG_ROOT '{path!s}'"
                     f"with '{new_path!s}'"
                 )
                 self._env["PANDA_CONFIG_ROOT"] = str(new_path)
+            elif path_parts[0].startswith("~"):
+                self._logger.warning(f"Cannot expand tilde in '{path!s}'")
 
     async def _set_firefly_variables(self) -> None:
         self._logger.debug("Setting firefly variables")
-        url = self._discovery.url_for_ui("portal")
+        url = await self._discovery.url_for_ui("portal")
         if url:
             self._env["FIREFLY_URL"] = url
             self._logger.debug(f"Firefly URL -> '{url}'")
@@ -267,28 +275,6 @@ class LabRunner(_RSPStartup):
         # this is turned off.
         self._logger.debug("Forcing JUPYTER_PREFER_ENV_PATH to 'no'")
         self._env["JUPYTER_PREFER_ENV_PATH"] = "no"
-
-    def _set_butler_credential_variables(self) -> None:
-        # We split this up into environment manipulation and later
-        # file substitution.  This is the environment part.
-        self._logger.debug("Setting Butler credential variables")
-        cred_dir = self._home / ".lsst"
-        if "AWS_SHARED_CREDENTIALS_FILE" in self._env:
-            awsname = Path(self._env["AWS_SHARED_CREDENTIALS_FILE"]).name
-            self._env["ORIG_AWS_SHARED_CREDENTIALS_FILE"] = self._env[
-                "AWS_SHARED_CREDENTIALS_FILE"
-            ]
-            newaws = str(cred_dir / awsname)
-            self._env["AWS_SHARED_CREDENTIALS_FILE"] = newaws
-            self._logger.debug(
-                f"Set 'AWS_SHARED_CREDENTIALS_FILE' -> '{newaws}'"
-            )
-        if "PGPASSFILE" in self._env:
-            pgpname = Path(self._env["PGPASSFILE"]).name
-            newpg = str(cred_dir / pgpname)
-            self._env["ORIG_PGPASSFILE"] = self._env["PGPASSFILE"]
-            self._env["PGPASSFILE"] = newpg
-            self._logger.debug(f"Set 'PGPASSFILE' -> '{newpg}'")
 
     async def _launch(self) -> None:
         # We're about to start the lab: set the flag saying we're running

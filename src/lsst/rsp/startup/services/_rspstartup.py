@@ -9,9 +9,9 @@ from pathlib import Path
 
 import structlog
 
-from ...constants import APP_NAME
-from ...storage.command import Command
-from ...storage.logging import configure_logging
+from ..constants import APP_NAME
+from ..storage.command import Command
+from ..storage.logging import configure_logging
 
 
 class _RSPStartup(ABC):
@@ -87,6 +87,29 @@ class _RSPStartup(ABC):
                 cdir.mkdir(exist_ok=True)
         except Exception:
             self._logger.exception("Emergency cleanup failed")
+
+    def _set_butler_credential_variables(self) -> None:
+        # This is common, because we need it in both the init container
+        # and in the Lab runner.  Both need to repoint the credentials
+        # from the mounted file to the user-home-space copy.
+        self._logger.debug("Setting Butler credential variables")
+        cred_dir = self._home / ".lsst"
+        if "AWS_SHARED_CREDENTIALS_FILE" in self._env:
+            awsname = Path(self._env["AWS_SHARED_CREDENTIALS_FILE"]).name
+            self._env["ORIG_AWS_SHARED_CREDENTIALS_FILE"] = self._env[
+                "AWS_SHARED_CREDENTIALS_FILE"
+            ]
+            newaws = str(cred_dir / awsname)
+            self._env["AWS_SHARED_CREDENTIALS_FILE"] = newaws
+            self._logger.debug(
+                f"Set 'AWS_SHARED_CREDENTIALS_FILE' -> '{newaws}'"
+            )
+        if "PGPASSFILE" in self._env:
+            pgpname = Path(self._env["PGPASSFILE"]).name
+            newpg = str(cred_dir / pgpname)
+            self._env["ORIG_PGPASSFILE"] = self._env["PGPASSFILE"]
+            self._env["PGPASSFILE"] = newpg
+            self._logger.debug(f"Set 'PGPASSFILE' -> '{newpg}'")
 
     async def _set_abnormal_startup(self, exc: OSError) -> None:
         # This and _clear_abnormal_startup() are async because these
