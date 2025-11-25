@@ -41,6 +41,7 @@ email = "sqre-admin@lists.lsst.org"
 
 [project.scripts]
 launch-rubin-jupyterlab = "lsst.rsp.startup.cli:launch_lab"
+launch-init-container   = "lsst.rsp.startup.cli:launch_init_container"
 provision-landing-page  = "lsst.rsp.startup.cli:provision_landing_page"
 
 [project.urls]

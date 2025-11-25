@@ -1,8 +1,8 @@
-# Docker build instructions for the lsst-rsp-based landing page provisioner.
+# Docker build instructions for the lsst-rsp-based init container.
 #
-# This Docker image is intended to be run as a Nublado lab init container.
-# It will ensure that necessary landing page symlinks are in place to allow
-# opening a splash screen on lab start.
+# It contains both the init container necessary for RSP startup and the
+# landing page provisioner, which ensures that the correct symbolic links
+# exist in order to show the CST landing page on Lab start.
 #
 # This Dockerfile has three stages:
 #
@@ -18,7 +18,7 @@
 #   - Runs a non-root user.
 #   - Sets up the entrypoint and port.
 
-FROM python:3.13.7-slim-trixie AS base-image
+FROM python:3.14.0-slim-trixie AS base-image
 
 # Update system packages.
 COPY scripts/install-base-packages.sh .
@@ -29,7 +29,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 FROM base-image AS install-image
 
 # Install uv.
-COPY --from=ghcr.io/astral-sh/uv:0.7.8 /uv /bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.9.1 /uv /bin/uv
 
 # Install some additional packages required for building dependencies.
 COPY scripts/install-dependency-packages.sh .
@@ -62,4 +62,7 @@ COPY --from=install-image /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Run the application.
-CMD ["provision-landing-page"]
+#
+# Landing page is "provision-landing-page"
+#
+CMD ["launch-init-container"]
