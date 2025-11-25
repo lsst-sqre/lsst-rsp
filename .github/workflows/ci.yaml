@@ -2,7 +2,8 @@ name: Python CI
 
 # Python versioning is a little weird here:
 # lsst-rsp has to be usable from inside the DM stack.  That's Python
-# 3.12.  However, the init container can be, and is, Python 3.13.
+# 3.12.  However, the init container is 3.14, and the stack will soon
+# be build against 3.13.
 #
 # So: test against all.  Build and upload the library with 3.12.
 # The init container is built by the lsst-sqre/nublado repository now.
@@ -34,6 +35,7 @@ jobs:
         python:
           - "3.12"
           - "3.13"
+          - "3.14"
 
     steps:
       - uses: actions/checkout@v5
