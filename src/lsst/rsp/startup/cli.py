@@ -1,5 +1,6 @@
 """CLI launchers for the Lab Runner and the landing page provisioner."""
 
+import asyncio
 import logging
 
 from .services.labrunner import LabRunner
@@ -10,7 +11,7 @@ def launch_lab() -> None:
     """Make a LabRunner and call its single public method.  All settings are
     in the environment.
     """
-    LabRunner().go()
+    asyncio.run(LabRunner().go())
 
 
 def provision_landing_page() -> None:

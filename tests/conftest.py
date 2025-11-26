@@ -49,6 +49,7 @@ def _rsp_env(
         "JUPYTERLAB_CONFIG_DIR",
         str(file_dir / "jupyterlab"),
     )
+    monkeypatch.setenv("REPERTOIRE_BASE_URL", "https://example.com/repertoire")
     with contextlib.suppress(KeyError):
         monkeypatch.delenv("TMPDIR")
         monkeypatch.delenv("DAF_BUTLER_CACHE_DIRECTORY")
