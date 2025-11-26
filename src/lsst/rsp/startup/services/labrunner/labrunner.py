@@ -1,5 +1,6 @@
 """RSP Lab launcher."""
 
+import asyncio
 import configparser
 import contextlib
 import datetime
@@ -17,6 +18,7 @@ from urllib.parse import parse_qsl, urlparse
 
 import structlog
 import yaml
+from rubin.repertoire import DiscoveryClient, RepertoireError
 
 from .... import get_access_token, get_digest
 from ....utils import get_jupyterlab_config_dir, get_runtime_mounts_dir
@@ -61,6 +63,13 @@ class LabRunner:
         # indicating what's wrong.
         self._home = Path(self._env.get("HOME", "/tmp"))
         self._cmd = Command(ignore_fail=True, logger=self._logger)
+        self._ext_url = self._env.get(
+            "EXTERNAL_INSTANCE_URL", "https://localhost:8888"
+        )
+        rep_url = self._env.get(
+            "REPERTOIRE_BASE_URL", self._ext_url + "/repertoire"
+        )
+        self._discovery = DiscoveryClient(base_url=rep_url)
 
     def go(self) -> None:
         """Start the user lab."""
@@ -122,8 +131,8 @@ class LabRunner:
     def _clear_abnormal_startup(self) -> None:
         for e in ("", "_ERRNO", "_STRERROR", "_MESSAGE", "_ERRORCODE"):
             del self._env[f"ABNORMAL_STARTUP{e}"]
-            self._broken = False
-            self._logger.info("Cleared abnormal startup condition")
+        self._broken = False
+        self._logger.info("Cleared abnormal startup condition")
 
     def _relocate_user_environment_if_requested(self) -> None:
         if not self._env.get("RESET_USER_ENV", ""):
@@ -164,7 +173,7 @@ class LabRunner:
         self._set_cpu_variables()
         self._set_image_digest()
         self._expand_panda_tilde()
-        self._set_firefly_variables()
+        asyncio.run(self._set_firefly_variables())
         self._force_jupyter_prefer_env_path_false()
         self._set_butler_credential_variables()
         self._logger.debug("Lab process environment", env=self._env)
@@ -316,16 +325,19 @@ class LabRunner:
             elif path_parts[0].startswith("~"):
                 self._logger.warning(f"Cannot expand tilde in '{path!s}'")
 
-    def _set_firefly_variables(self) -> None:
+    async def _set_firefly_variables(self) -> None:
         self._logger.debug("Setting firefly variables")
-        firefly_route = self._env.get("FIREFLY_ROUTE", "/firefly")
-        ext_url = self._env.get(
-            "EXTERNAL_INSTANCE_URL", "https://localhost:8888"
-        )
-        self._env["FIREFLY_URL"] = (
-            f"{ext_url.strip('/')}/{firefly_route.lstrip('/')}"
-        )
-        self._logger.debug(f"Firefly URL -> '{self._env['FIREFLY_URL']}'")
+        emsg = "Discovery of portal service failed; not setting variables"
+        try:
+            ff_url = await self._discovery.url_for_ui("portal")
+        except RepertoireError:
+            self._logger.exception(emsg)
+            return
+        if not ff_url:
+            self._logger.warning(emsg)
+            return
+        self._env["FIREFLY_URL"] = ff_url
+        self._logger.debug(f"Firefly URL -> '{ff_url}'")
 
     def _force_jupyter_prefer_env_path_false(self) -> None:
         # cf https://discourse.jupyter.org/t/jupyter-paths-priority-order/7771
@@ -884,6 +896,8 @@ class LabRunner:
     # Start the lab.
     #
     def _launch(self) -> None:
+        # Done with the discovery client: shut it down.
+        asyncio.run(self._discovery.aclose())
         # We're about to start the lab: set the flag saying we're running
         # inside the lab.  It's used by shell startup.
         self._env["RUNNING_INSIDE_JUPYTERLAB"] = "TRUE"

@@ -154,12 +154,8 @@ def test_set_timeout_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "CULL_KERNEL_IDLE_TIMEOUT" not in lr._env
 
 
-@pytest.mark.usefixtures("_rsp_env")
-def test_set_firefly_variables(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("EXTERNAL_INSTANCE_URL", "https://lab.example.com:8443")
-    lr = LabRunner()
-    lr._set_firefly_variables()
-    assert lr._env["FIREFLY_URL"] == "https://lab.example.com:8443/firefly"
+# No test for setting firefly variables because the Repertoire client mock
+# currently doesn't handle service discovery, just dataset discovery.
 
 
 @pytest.mark.usefixtures("_rsp_env")

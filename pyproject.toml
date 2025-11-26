@@ -27,6 +27,7 @@ dependencies = [
     "IPython",
     "pyvo",
     "httpx",
+    "rubin-repertoire",
     "pyyaml",
     "structlog",  # Uses CalVer, not SemVer
     "symbolicmode",
