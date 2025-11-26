@@ -54,6 +54,10 @@ class LabRunner:
         configure_logging(debug=self._debug)
         self._logger = structlog.get_logger(APP_NAME)
         self._broken = False
+        for req_env in ("JUPYTERHUB_BASE_URL", "HOME"):
+            if req_env not in self._env:
+                exc = RSPStartupError("EBADENV", None, req_env)
+                self._set_abnormal_startup(exc)
         # If no home, use /tmp?  It won't work but at least if we create
         # stuff there it will be harmless, and the user will get a message
         # indicating what's wrong.
@@ -67,52 +71,39 @@ class LabRunner:
         )
         self._discovery = DiscoveryClient(base_url=rep_url)
 
-    async def go(self) -> None:
+    def go(self) -> None:
         """Start the user lab."""
         # If the user somehow manages to screw up their local environment
         # so badly that Jupyterlab won't even start, we will have to
         # bail them out on the fileserver end.  Since Jupyter Lab is in
         # its own venv, which is not writeable by the user, this should
         # require quite a bit of creativity.
-        if self._broken:
-            for req_env in ("JUPYTERHUB_BASE_URL", "HOME"):
-                if req_env not in self._env:
-                    exc = RSPStartupError("EBADENV", None, req_env)
-                    await self._set_abnormal_startup(exc)
         try:
-            await self._relocate_user_environment_if_requested()
-            await self._configure_env()
+            self._relocate_user_environment_if_requested()
+            self._configure_env()
         except OSError as exc:
-            await self._set_abnormal_startup(exc)
+            self._set_abnormal_startup(exc)
 
         # Clean up stale cache, check for writeability, try to free some
         # space if necessary.  This stage will manage its own abnormality,
         # since it tries to take some corrective action.
-        await self._tidy_homedir()
+        self._tidy_homedir()
 
         # If everything seems OK so far, copy files into the user's home
         # space and set up git-lfs.
 
         if not self._broken:
             try:
-                await self._copy_files_to_user_homedir()
-                await self._setup_git()
+                self._copy_files_to_user_homedir()
+                self._setup_git()
             except OSError as exc:
-                await self._set_abnormal_startup(exc)
+                self._set_abnormal_startup(exc)
 
         # Decide between interactive and noninteractive start, do
         # things that change between those two, and launch the Lab
-        await self._launch()
+        self._launch()
 
-    # In general, methods that do I/O will be async, while those that
-    # just work on in-memory objects will remain synchronous.
-
-    # These two will be async so eventually we can split labrunner into an
-    # init container and the thing that sets up the Lab process; the first
-    # one will want to write files on abnormal startup, and we want to just
-    # have an overrideable method and subclass each of those.
-
-    async def _set_abnormal_startup(self, exc: OSError) -> None:
+    def _set_abnormal_startup(self, exc: OSError) -> None:
         """Take an OSError, convert it into an RSPStartupError if necessary,
         and then set the env variables that rsp-jupyter-extensions will use
         to report the error to the user at Lab startup.
@@ -137,13 +128,13 @@ class LabRunner:
         msg = f"Abnormal RSP startup set with exception {new_exc!s}"
         self._logger.error(msg)
 
-    async def _clear_abnormal_startup(self) -> None:
+    def _clear_abnormal_startup(self) -> None:
         for e in ("", "_ERRNO", "_STRERROR", "_MESSAGE", "_ERRORCODE"):
             del self._env[f"ABNORMAL_STARTUP{e}"]
         self._broken = False
         self._logger.info("Cleared abnormal startup condition")
 
-    async def _relocate_user_environment_if_requested(self) -> None:
+    def _relocate_user_environment_if_requested(self) -> None:
         if not self._env.get("RESET_USER_ENV", ""):
             return
         self._logger.debug("User environment relocation requested")
@@ -174,11 +165,11 @@ class LabRunner:
     #
     # Next up, a big block of setting up our subprocess environment.
     #
-    async def _configure_env(self) -> None:
+    def _configure_env(self) -> None:
         self._logger.debug("Configuring environment for JupyterLab process")
         self._set_user()
-        await self._set_tmpdir_if_scratch_available()
-        await self._set_butler_cache()
+        self._set_tmpdir_if_scratch_available()
+        self._set_butler_cache()
         self._set_cpu_variables()
         self._set_image_digest()
         self._expand_panda_tilde()
@@ -196,7 +187,7 @@ class LabRunner:
                 raise RSPStartupError(RSPErrorCode.EBADENV, None, "USER")
             self._env["USER"] = user
 
-    async def _check_user_scratch_subdir(self, path: Path) -> Path | None:
+    def _check_user_scratch_subdir(self, path: Path) -> Path | None:
         # This is very Rubin specific.  We generally have a large
         # world-writable filesystem in a scratch path.
         #
@@ -245,7 +236,7 @@ class LabRunner:
         self._env["SCRATCH_DIR"] = f"{user_scratch_dir!s}"
         return user_scratch_path
 
-    async def _set_tmpdir_if_scratch_available(self) -> None:
+    def _set_tmpdir_if_scratch_available(self) -> None:
         # Assuming that TMPDIR is not already set (e.g. by the spawner),
         # we will try to create <scratch_path>/<user>/tmp and ensure it is a
         # writeable directory, and if it is, TMPDIR will be repointed to it.
@@ -259,21 +250,21 @@ class LabRunner:
         if tmpdir:
             self._logger.debug(f"Not setting TMPDIR: already set to {tmpdir}")
             return
-        temp_path = await self._check_user_scratch_subdir(Path("tmp"))
+        temp_path = self._check_user_scratch_subdir(Path("tmp"))
         if temp_path:
             self._env["TMPDIR"] = str(temp_path)
             self._logger.debug(f"Set TMPDIR to {temp_path!s}")
         else:
             self._logger.debug("Did not set TMPDIR")
 
-    async def _set_butler_cache(self) -> None:
+    def _set_butler_cache(self) -> None:
         # This is basically the same story as TMPDIR.
         env_v = "DAF_BUTLER_CACHE_DIRECTORY"
         dbcd = self._env.get(env_v, "")
         if dbcd:
             self._logger.debug(f"Not setting {env_v}: already set to {dbcd}")
             return
-        temp_path = await self._check_user_scratch_subdir(Path("butler_cache"))
+        temp_path = self._check_user_scratch_subdir(Path("butler_cache"))
         if temp_path:
             self._env[env_v] = str(temp_path)
             self._logger.debug(f"Set {env_v} to {temp_path!s}")
@@ -318,12 +309,6 @@ class LabRunner:
             self._logger.debug("Could not get image digest")
 
     def _expand_panda_tilde(self) -> None:
-        # Path.expanduser() works fine here except that:
-        # 1. It's more difficult to test, because it uses the real user
-        # 2. In a real RSP environment, the user will have an NSS entry,
-        #    but no other user will, so if a site administrator sets the
-        #    variable to something like `~ktl/panda/config`, we wouldn't
-        #    actually catch that that wouldn't work IRL.
         self._logger.debug("Expanding tilde in PANDA_CONFIG_ROOT, if needed")
         if "PANDA_CONFIG_ROOT" in self._env:
             # We've already been through set_user(), so USER must be set.
@@ -388,11 +373,11 @@ class LabRunner:
     #
     # The second big block tries to tidy the home directory.
     #
-    async def _tidy_homedir(self) -> None:
-        await self._clean_astropy_cache()
-        await self._test_for_space()
+    def _tidy_homedir(self) -> None:
+        self._clean_astropy_cache()
+        self._test_for_space()
 
-    async def _clean_astropy_cache(self) -> None:
+    def _clean_astropy_cache(self) -> None:
         # This is extremely conservative.  We only find URLs with an
         # "Expires" parameter (in practice, s3 signed URLs), and remove
         # the key and contents if the expiration is in the past.
@@ -414,9 +399,9 @@ class LabRunner:
                 continue
             for key, value in parse_qsl(qry):
                 if key.lower() == "expires":
-                    await self._handle_expiry(c, value)
+                    self._handle_expiry(c, value)
 
-    async def _handle_expiry(self, cachefile: Path, expiry: str) -> None:
+    def _handle_expiry(self, cachefile: Path, expiry: str) -> None:
         try:
             exptime = int(expiry)
         except ValueError:
@@ -425,34 +410,34 @@ class LabRunner:
         if time.time() > exptime:
             self._logger.debug(f"Removing expired cache {cachefile!s}")
             try:
-                await self._remove_astropy_cachedir(cachefile)
+                self._remove_astropy_cachedir(cachefile)
             except OSError:
                 self._logger.exception(f"Failed to remove cache {cachefile!s}")
                 # Having found the parameter, we are done with this url.
                 return
 
-    async def _remove_astropy_cachedir(self, cachedir: Path) -> None:
+    def _remove_astropy_cachedir(self, cachedir: Path) -> None:
         (cachedir / "url").unlink()
         (cachedir / "contents").unlink()
         cachedir.rmdir()
 
-    async def _test_for_space(self) -> None:
+    def _test_for_space(self) -> None:
         cachefile = self._home / ".cache" / "1mb.txt"
         try:
-            await self._write_a_megabyte(cachefile)
+            self._write_a_megabyte(cachefile)
         except OSError as exc:
             self._logger.warning("Could not write 1MB of text")
-            await self._set_abnormal_startup(exc)
+            self._set_abnormal_startup(exc)
         if self._broken:
-            await self._try_emergency_cleanup()
+            self._try_emergency_cleanup()
             try:
                 # Did that clear enough room?
-                await self._write_a_megabyte(cachefile)
-                await self._clear_abnormal_startup()
+                self._write_a_megabyte(cachefile)
+                self._clear_abnormal_startup()
             except OSError:
                 pass  # Nope, stay broken.
 
-    async def _write_a_megabyte(self, cachefile: Path) -> None:
+    def _write_a_megabyte(self, cachefile: Path) -> None:
         # Try to write a 1M block, which should be enough to start the lab.
         sixteen = "0123456789abcdef"
         mega = sixteen * 64 * 1024
@@ -460,13 +445,13 @@ class LabRunner:
         parent = cachefile.parent
         parent.mkdir(exist_ok=True)
         cachefile.write_text(mega)
-        await self._remove_cachefile(cachefile)
+        self._remove_cachefile(cachefile)
 
-    async def _remove_cachefile(self, cachefile: Path) -> None:
+    def _remove_cachefile(self, cachefile: Path) -> None:
         if cachefile.is_file():
             cachefile.unlink()
 
-    async def _try_emergency_cleanup(self) -> None:
+    def _try_emergency_cleanup(self) -> None:
         # We have either critically low space, or there's something else
         # wrong with the home directory.
         #
@@ -490,15 +475,15 @@ class LabRunner:
     #
     # The third big block is a bunch of file manipulation.
     #
-    async def _copy_files_to_user_homedir(self) -> None:
+    def _copy_files_to_user_homedir(self) -> None:
         self._logger.debug("Copying files to user home directory")
-        await self._copy_butler_credentials()
-        await self._setup_dask()
-        await self._copy_logging_profile()
-        await self._copy_dircolors()
-        await self._copy_etc_skel()
+        self._copy_butler_credentials()
+        self._setup_dask()
+        self._copy_logging_profile()
+        self._copy_dircolors()
+        self._copy_etc_skel()
 
-    async def _copy_butler_credentials(self) -> None:
+    def _copy_butler_credentials(self) -> None:
         if "AWS_SHARED_CREDENTIALS_FILE" in self._env:
             self._merge_aws_creds()
         if "PGPASSFILE" in self._env:
@@ -510,10 +495,6 @@ class LabRunner:
         # in our homedir.  For any given section, we assume that the
         # information in the container ("original credentials files")
         # is correct, but leave any other user config alone.
-        #
-        # The configparser methods don't want to be called from an async
-        # function directly, so we leave this and merge_pgpass() sync
-        # and just make their caller async.
         #
         ascf = "AWS_SHARED_CREDENTIALS_FILE"
         for ev in (ascf, "ORIG_" + ascf):
@@ -564,21 +545,21 @@ class LabRunner:
             for connection, passwd in config.items():
                 f.write(f"{connection}:{passwd}\n")
 
-    async def _setup_dask(self) -> None:
+    def _setup_dask(self) -> None:
         self._logger.debug("Setting up dask dashboard proxy information")
         cfgdir = self._home / ".config" / "dask"
         good_dashboard_config = False
         if cfgdir.is_dir():
-            good_dashboard_config = await self._tidy_extant_config(cfgdir)
+            good_dashboard_config = self._tidy_extant_config(cfgdir)
             # If we found and replaced the dashboard config, or if it was
             # already correct, we do not need to write a new file.
             #
             # If there is no config dir, there's nothing to tidy.
         if not good_dashboard_config:
             # We need to write a new file with the correct config.
-            await self._inject_new_proxy(cfgdir / "dashboard.yaml")
+            self._inject_new_proxy(cfgdir / "dashboard.yaml")
 
-    async def _tidy_extant_config(self, cfgdir: Path) -> bool:
+    def _tidy_extant_config(self, cfgdir: Path) -> bool:
         #
         # This is the controversial method.  We have had (at least) four
         # regimes of dask usage in the RSP.
@@ -638,15 +619,13 @@ class LabRunner:
                         .isoformat()
                     )
                     bk = Path(f"{fl!s}.{today}")
-                    newcfg = await self._clean_empty_config(fl, bk)
+                    newcfg = self._clean_empty_config(fl, bk)
                     if not newcfg:
                         continue  # next file
-                    retval = await self._fix_dashboard(newcfg, fl, bk)
+                    retval = self._fix_dashboard(newcfg, fl, bk)
         return retval
 
-    async def _clean_empty_config(
-        self, fl: Path, bk: Path
-    ) -> dict[str, Any] | None:
+    def _clean_empty_config(self, fl: Path, bk: Path) -> dict[str, Any] | None:
         # returns the deserialized yaml object if 1) it was deserializable
         # in the first place, and 2) it survived flensing.
         try:
@@ -666,9 +645,7 @@ class LabRunner:
         # It's legal YAML and it's not empty
         return flensed
 
-    async def _fix_dashboard(
-        self, cfg: dict[str, Any], fl: Path, bk: Path
-    ) -> bool:
+    def _fix_dashboard(self, cfg: dict[str, Any], fl: Path, bk: Path) -> bool:
         # Look for "distributed.dashboard.link".
         # It may have an older, non-user-domain-aware link in it,
         # and if so, then we need to replace it with the newer,
@@ -740,7 +717,7 @@ class LabRunner:
             return False
         return True
 
-    async def _inject_new_proxy(self, tgt: Path) -> None:
+    def _inject_new_proxy(self, tgt: Path) -> None:
         # Conventional for RSP.
         parent = tgt.parent
         try:
@@ -799,7 +776,7 @@ class LabRunner:
             retval[key] = flensed
         return retval if retval else None
 
-    async def _copy_logging_profile(self) -> None:
+    def _copy_logging_profile(self) -> None:
         self._logger.debug("Copying logging profile if needed")
         user_profile = (
             self._home
@@ -845,7 +822,7 @@ class LabRunner:
                 return
             user_profile.write_bytes(srcfile.read_bytes())
 
-    async def _copy_dircolors(self) -> None:
+    def _copy_dircolors(self) -> None:
         self._logger.debug("Copying dircolors if needed")
         if not (self._home / ".dir_colors").exists():
             self._logger.debug("Copying dircolors")
@@ -855,7 +832,7 @@ class LabRunner:
         else:
             self._logger.debug("Copying dircolors not needed")
 
-    async def _copy_etc_skel(self) -> None:
+    def _copy_etc_skel(self) -> None:
         self._logger.debug("Copying files from /etc/skel if they don't exist")
         etc_skel = ETC_PATH / "skel"
         contents = etc_skel.walk()
@@ -894,14 +871,18 @@ class LabRunner:
     # Now that we're not checking out notebooks anymore, all we have to do
     # with Git is install git-lfs.
     #
-    async def _setup_git(self) -> None:
+    def _setup_git(self) -> None:
+        # Set up Git LFS
+        self._setup_gitlfs()
+
+    def _setup_gitlfs(self) -> None:
         # Check for git-lfs
         self._logger.debug("Installing Git LFS if needed")
-        if not await self._check_for_git_lfs():
+        if not self._check_for_git_lfs():
             self._cmd.run("git", "lfs", "install")
             self._logger.debug("Git LFS installed")
 
-    async def _check_for_git_lfs(self) -> bool:
+    def _check_for_git_lfs(self) -> bool:
         gitconfig = self._home / ".gitconfig"
         if gitconfig.is_file():
             gc = gitconfig.read_text().splitlines()
@@ -921,22 +902,22 @@ class LabRunner:
         # inside the lab.  It's used by shell startup.
         self._env["RUNNING_INSIDE_JUPYTERLAB"] = "TRUE"
         if bool(self._env.get("NONINTERACTIVE", "")):
-            await self._start_noninteractive()
-            # We exec a lab; control never returns here (await is a lie)
-        await self._modify_interactive_settings()
-        await self._start()
+            self._start_noninteractive()
+            # We exec a lab; control never returns here
+        self._modify_interactive_settings()
+        self._start()
 
-    async def _modify_interactive_settings(self) -> None:
+    def _modify_interactive_settings(self) -> None:
         self._logger.debug("Modifying interactive settings if needed")
         # These both write files; if either fails, start up but warn
         # the user their experience is likely to be bad.
         try:
-            await self._manage_access_token()
-            await self._increase_log_limit()
+            self._manage_access_token()
+            self._increase_log_limit()
         except OSError as exc:
-            await self._set_abnormal_startup(exc)
+            self._set_abnormal_startup(exc)
 
-    async def _increase_log_limit(self) -> None:
+    def _increase_log_limit(self) -> None:
         self._logger.debug("Increasing log limit if needed")
         settings: dict[str, Any] = {}
         settings_dir = (
@@ -964,7 +945,7 @@ class LabRunner:
         else:
             self._logger.debug("Log limit increase not needed")
 
-    async def _manage_access_token(self) -> None:
+    def _manage_access_token(self) -> None:
         self._logger.debug("Updating access token")
         tokfile = self._home / ".access_token"
         tokfile.unlink(missing_ok=True)
@@ -984,7 +965,7 @@ class LabRunner:
         else:
             self._logger.debug("Could not determine access token")
 
-    async def _start_noninteractive(self) -> None:
+    def _start_noninteractive(self) -> None:
         config_path = (
             get_runtime_mounts_dir()
             / "noninteractive"
@@ -1014,7 +995,7 @@ class LabRunner:
                 result.append(f"--{setting}={val}")
         return result
 
-    async def _make_abnormal_startup_environment(self) -> None:
+    def _make_abnormal_startup_environment(self) -> None:
         # What we're doing is writing (we hope) someplace safe, be that
         # an empty, ephemeral filesystem (such as /tmp in any sanely-configured
         # K8s-based RSP) or in scratch space somewhere.
@@ -1136,14 +1117,14 @@ class LabRunner:
         txt += dedent(open_an_issue)
         return txt
 
-    async def _start(self) -> None:
+    def _start(self) -> None:
         log_level = "DEBUG" if self._debug else "INFO"
         notebook_dir = f"{self._home!s}"
         if self._broken:
             self._logger.warning(
                 f"Abnormal startup: {self._env['ABNORMAL_STARTUP_MESSAGE']}"
             )
-            await self._make_abnormal_startup_environment()
+            self._make_abnormal_startup_environment()
             #
             # We will check to see if we got SCRATCH_DIR set before we broke,
             # and if so, use that, which would be a user-specific path on a
@@ -1175,9 +1156,6 @@ class LabRunner:
         ]
         cmd.extend(self._set_timeout_variables())
         self._logger.debug("Command to run:", command=cmd)
-        #
-        # Close our discovery client.
-        await self._discovery.aclose()
         # Flush open files before exec()
         sys.stdout.flush()
         sys.stderr.flush()
