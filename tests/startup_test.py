@@ -34,56 +34,54 @@ def test_debug_object(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.usefixtures("_rsp_env")
-@pytest.mark.asyncio
-async def test_set_tmpdir(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_set_tmpdir(monkeypatch: pytest.MonkeyPatch) -> None:
     # Happy path.
     lr = LabRunner()
-    await lr._set_tmpdir_if_scratch_available()
+    lr._set_tmpdir_if_scratch_available()
     assert lr._env["TMPDIR"].endswith("/scratch/hambone/tmp")
     # Exists, but it's not a directory
     scratch_path = Path(lr._env["TMPDIR"])
     scratch_path.rmdir()
     scratch_path.touch()
     lr = LabRunner()
-    await lr._set_tmpdir_if_scratch_available()
+    lr._set_tmpdir_if_scratch_available()
     assert "TMPDIR" not in lr._env
     # Put it back the way it was
     scratch_path.unlink()
     # Pre-set TMPDIR.
     monkeypatch.setenv("TMPDIR", "/preset")
     lr = LabRunner()
-    await lr._set_tmpdir_if_scratch_available()
+    lr._set_tmpdir_if_scratch_available()
     assert lr._env["TMPDIR"] == "/preset"
     monkeypatch.delenv("TMPDIR")
     # Can't write to scratch dir
     monkeypatch.setenv("SCRATCH_PATH", "/nonexistent/scratch")
     lr = LabRunner()
-    await lr._set_tmpdir_if_scratch_available()
+    lr._set_tmpdir_if_scratch_available()
     assert "TMPDIR" not in lr._env
     monkeypatch.delenv("SCRATCH_PATH")
     scratch_path.parent.rmdir()
 
 
 @pytest.mark.usefixtures("_rsp_env")
-@pytest.mark.asyncio
-async def test_set_butler_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_set_butler_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     env_v = "DAF_BUTLER_CACHE_DIRECTORY"
     # Happy path.
     lr = LabRunner()
-    await lr._set_butler_cache()
+    lr._set_butler_cache()
     assert lr._env[env_v].endswith("/scratch/hambone/butler_cache")
     dbc = Path(lr._env[env_v])
     dbc.rmdir()
     dbc.touch()
     lr = LabRunner()
-    await lr._set_butler_cache()
+    lr._set_butler_cache()
     assert lr._env[env_v] == "/tmp/butler_cache"
     # Put it back the way it was
     dbc.unlink()
     # Pre-set DAF_BUTLER_CACHE_DIR.
     monkeypatch.setenv(env_v, "/preset")
     lr = LabRunner()
-    await lr._set_butler_cache()
+    lr._set_butler_cache()
     assert lr._env[env_v] == "/preset"
     monkeypatch.delenv(env_v)
     dbc.parent.rmdir()
@@ -168,10 +166,7 @@ def test_force_jupyter_prefer_env_path_false() -> None:
 
 
 @pytest.mark.usefixtures("_rsp_env")
-@pytest.mark.asyncio
-async def test_set_butler_credential_vars(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_set_butler_credential_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", "/etc/secret/aws.creds")
     monkeypatch.setenv("PGPASSFILE", "/etc/secret/pgpass")
     lr = LabRunner()
@@ -187,21 +182,20 @@ async def test_set_butler_credential_vars(
 
 
 @pytest.mark.usefixtures("_rsp_env")
-@pytest.mark.asyncio
-async def test_busted_homedir(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_busted_homedir(monkeypatch: pytest.MonkeyPatch) -> None:
     def out_of_space(lrobj: LabRunner, cachefile: Path) -> None:
         raise OSError(errno.EDQUOT, None, str(cachefile))
 
     monkeypatch.setattr(LabRunner, "_write_a_megabyte", out_of_space)
     lr = LabRunner()
 
-    await lr._test_for_space()
+    lr._test_for_space()
 
     assert lr._broken
     assert lr._env["ABNORMAL_STARTUP"] == "TRUE"
     assert lr._env["ABNORMAL_STARTUP_ERRNO"] == str(errno.EDQUOT)
 
-    await lr._clear_abnormal_startup()
+    lr._clear_abnormal_startup()
     assert lr._broken is not True
 
 
@@ -211,8 +205,7 @@ async def test_busted_homedir(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.usefixtures("_rsp_env")
-@pytest.mark.asyncio
-async def test_create_credential_dir(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_create_credential_dir(monkeypatch: pytest.MonkeyPatch) -> None:
     secret_dir = get_runtime_mounts_dir() / "secrets"
     monkeypatch.setenv(
         "AWS_SHARED_CREDENTIALS_FILE", str(secret_dir / "aws-credentials.ini")
@@ -227,15 +220,12 @@ async def test_create_credential_dir(monkeypatch: pytest.MonkeyPatch) -> None:
     lr = LabRunner()
     lr._set_butler_credential_variables()
     assert not cred_dir.exists()
-    await lr._copy_butler_credentials()
+    lr._copy_butler_credentials()
     assert cred_dir.exists()
 
 
 @pytest.mark.usefixtures("_rsp_env")
-@pytest.mark.asyncio
-async def test_copy_butler_credentials(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_copy_butler_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     secret_dir = get_runtime_mounts_dir() / "secrets"
     monkeypatch.setenv(
         "AWS_SHARED_CREDENTIALS_FILE", str(secret_dir / "aws-credentials.ini")
@@ -258,7 +248,7 @@ async def test_copy_butler_credentials(
     assert cp["default"]["aws_secret_access_key"] == "gets_overwritten"
     assert cp["tertiary"]["aws_secret_access_key"] == "key03"
     lr._set_butler_credential_variables()
-    await lr._copy_butler_credentials()
+    lr._copy_butler_credentials()
     lines = pg.read_text().splitlines()
     aws = lr._home / ".lsst" / "aws-credentials.ini"
     for line in lines:
@@ -275,15 +265,14 @@ async def test_copy_butler_credentials(
 
 
 @pytest.mark.usefixtures("_rsp_env")
-@pytest.mark.asyncio
-async def test_dask_config() -> None:
+def test_dask_config() -> None:
     newlink = "{JUPYTERHUB_PUBLIC_URL}proxy/{port}/status"
 
     # First, just see if we create the default proxy settings.
     lr = LabRunner()
     dask_dir = lr._home / ".config" / "dask"
     assert not dask_dir.exists()
-    await lr._setup_dask()
+    lr._setup_dask()
     assert dask_dir.exists()
     def_file = dask_dir / "dashboard.yaml"
     assert def_file.exists()
@@ -304,7 +293,7 @@ async def test_dask_config() -> None:
     assert not def_file.exists()
     assert old_file.exists()
 
-    await lr._setup_dask()  # Should replace the text.
+    lr._setup_dask()  # Should replace the text.
     obj = yaml.safe_load(old_file.read_text())
     assert obj["distributed"]["dashboard"]["link"] == newlink
 
@@ -330,7 +319,7 @@ async def test_dask_config() -> None:
 
     # This should create the defaults, and should remove the flensed
     # config and the only-comments file.
-    await lr._setup_dask()
+    lr._setup_dask()
     assert not fl_file.exists()
     assert not cm_file.exists()
     assert def_file.exists()
@@ -343,15 +332,14 @@ async def test_dask_config() -> None:
 
 
 @pytest.mark.usefixtures("_rsp_env")
-@pytest.mark.asyncio
-async def test_copy_logging_profile(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_copy_logging_profile(monkeypatch: pytest.MonkeyPatch) -> None:
     lr = LabRunner()
     pfile = (
         lr._home / ".ipython" / "profile_default" / "startup" / "20-logging.py"
     )
     assert not pfile.exists()
     pfile.parent.mkdir(parents=True)
-    await lr._copy_logging_profile()
+    lr._copy_logging_profile()
     assert pfile.exists()
     h_contents = pfile.read_text()
     sfile = get_jupyterlab_config_dir() / "etc" / "20-logging.py"
@@ -360,24 +348,22 @@ async def test_copy_logging_profile(monkeypatch: pytest.MonkeyPatch) -> None:
     assert s_contents == h_contents
     h_contents += "\n# Locally modified\n"
     pfile.write_text(h_contents)
-    await lr._copy_logging_profile()
+    lr._copy_logging_profile()
     new_contents = pfile.read_text()
     assert new_contents == h_contents
     assert new_contents != s_contents
 
 
 @pytest.mark.usefixtures("_rsp_env")
-@pytest.mark.asyncio
-async def test_copy_dircolors(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_copy_dircolors(monkeypatch: pytest.MonkeyPatch) -> None:
     lr = LabRunner()
     assert not (lr._home / ".dir_colors").exists()
-    await lr._copy_dircolors()
+    lr._copy_dircolors()
     assert (lr._home / ".dir_colors").exists()
 
 
 @pytest.mark.usefixtures("_rsp_env")
-@pytest.mark.asyncio
-async def test_copy_etc_skel(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_copy_etc_skel(monkeypatch: pytest.MonkeyPatch) -> None:
     lr = LabRunner()
     assert not (lr._home / ".gitconfig").exists()
     assert not (lr._home / ".pythonrc").exists()
@@ -385,7 +371,7 @@ async def test_copy_etc_skel(monkeypatch: pytest.MonkeyPatch) -> None:
     prc = (etc / "skel" / ".pythonrc").read_text()
     prc += "\n# Local mods\n"
     (lr._home / ".pythonrc").write_text(prc)
-    await lr._copy_etc_skel()
+    lr._copy_etc_skel()
     assert (lr._home / ".gitconfig").exists()
     sgc = (etc / "skel" / ".gitconfig").read_text()
     lgc = (lr._home / ".gitconfig").read_text()
@@ -397,8 +383,7 @@ async def test_copy_etc_skel(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.usefixtures("_rsp_env")
-@pytest.mark.asyncio
-async def test_relocate_user_files(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_relocate_user_files(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RESET_USER_ENV", "1")
     lr = LabRunner()
     assert not (lr._home / ".local").exists()
@@ -407,7 +392,7 @@ async def test_relocate_user_files(monkeypatch: pytest.MonkeyPatch) -> None:
     (lr._home / ".local" / "foo").write_text("bar")
     (lr._home / "notebooks").mkdir()
     (lr._home / "notebooks" / ".user_setups").write_text("#!/bin/sh\n")
-    await lr._relocate_user_environment_if_requested()
+    lr._relocate_user_environment_if_requested()
     assert not (lr._home / ".local").exists()
     assert not (lr._home / "notebooks" / ".user_setups").exists()
     reloc = next(iter((lr._home).glob(".user_env.*")))
@@ -416,12 +401,11 @@ async def test_relocate_user_files(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.usefixtures("_rsp_env")
-@pytest.mark.asyncio
-async def test_setup_git(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_setup_gitlfs(monkeypatch: pytest.MonkeyPatch) -> None:
     lr = LabRunner()
-    assert await lr._check_for_git_lfs() is False
-    await lr._setup_git()
-    assert await lr._check_for_git_lfs() is True
+    assert lr._check_for_git_lfs() is False
+    lr._setup_gitlfs()
+    assert lr._check_for_git_lfs() is True
 
 
 #
@@ -430,8 +414,7 @@ async def test_setup_git(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.usefixtures("_rsp_env")
-@pytest.mark.asyncio
-async def test_increase_log_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_increase_log_limit(monkeypatch: pytest.MonkeyPatch) -> None:
     lr = LabRunner()
     settings = (
         lr._home
@@ -443,7 +426,7 @@ async def test_increase_log_limit(monkeypatch: pytest.MonkeyPatch) -> None:
         / "tracker.jupyterlab.settings"
     )
     assert not settings.exists()
-    await lr._increase_log_limit()
+    lr._increase_log_limit()
     assert settings.exists()
     with settings.open() as f:
         obj = json.load(f)
@@ -451,8 +434,7 @@ async def test_increase_log_limit(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.usefixtures("_rsp_env")
-@pytest.mark.asyncio
-async def test_manage_access_token(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_manage_access_token(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DEBUG", "1")
     token = "token-of-esteem"
     monkeypatch.setenv("ACCESS_TOKEN", token)
@@ -466,7 +448,7 @@ async def test_manage_access_token(monkeypatch: pytest.MonkeyPatch) -> None:
     lr = LabRunner()
     tfile = lr._home / ".access_token"
     assert not tfile.exists()
-    await lr._manage_access_token()
+    lr._manage_access_token()
     assert tfile.exists()
     assert tfile.read_text() == token
     tfile.unlink()
@@ -474,7 +456,7 @@ async def test_manage_access_token(monkeypatch: pytest.MonkeyPatch) -> None:
     assert ctr_file.exists()
     assert not tfile.exists()
     lr = LabRunner()
-    await lr._manage_access_token()
+    lr._manage_access_token()
     assert tfile.exists()
     assert tfile.read_text() == token
     # Remove the rewritten saved file and replace with saved token.
