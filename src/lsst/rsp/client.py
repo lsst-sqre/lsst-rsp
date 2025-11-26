@@ -41,9 +41,9 @@ class RSPClient(httpx.AsyncClient):
             # enabled) then warn the user but keep going.  Likewise
             # for the scheme, which must match exactly.  It's possible they
             # are intentionally making a call to a different RSP instance.
-            if parsed_endpoint.scheme != parsed_instance.scheme and (
+            if parsed_endpoint.scheme != parsed_instance.scheme or (
                 parsed_endpoint.netloc != parsed_instance.netloc
-                or f"nb.{parsed_endpoint.netloc}" != parsed_instance.netloc
+                and f"nb.{parsed_endpoint.netloc}" != parsed_instance.netloc
             ):
                 logger = logging.getLogger(__name__)
                 logger.warning(
