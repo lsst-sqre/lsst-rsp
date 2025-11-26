@@ -5,6 +5,7 @@ from importlib.metadata import PackageNotFoundError, version
 from ._discovery import (
     InfluxDBCredentials,
     InfluxDBLocation,
+    get_discovery,
     get_influxdb_credentials,
     get_influxdb_location,
     get_service_url,
@@ -66,6 +67,7 @@ __all__ = [
     "get_catalog",
     "get_datalink_result",
     "get_digest",
+    "get_discovery",
     "get_hostname",
     "get_influxdb_credentials",
     "get_influxdb_location",

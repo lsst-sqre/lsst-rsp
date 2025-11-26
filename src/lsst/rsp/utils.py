@@ -51,6 +51,7 @@ def get_hostname() -> str:
 
 def get_service_url(name: str, env_name: str | None = None) -> str:
     """Get our best guess at the URL for the requested service."""
+    # Use discovery to get this.
     if not env_name:
         env_name = name.upper()
 

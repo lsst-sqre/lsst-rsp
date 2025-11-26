@@ -7,6 +7,7 @@ import xmltodict
 from deprecated import deprecated
 
 from .client import RSPClient
+from ._discovery import _get_discovery
 from .utils import get_pyvo_auth, get_service_url
 
 
@@ -69,8 +70,32 @@ def retrieve_query(query_url: str) -> pyvo.dal.AsyncTAPJob:
         warnings.simplefilter("ignore", category=UserWarning)
         return pyvo.dal.AsyncTAPJob(query_url, session=get_pyvo_auth())
 
-
+@deprecated(reason="Please use get_dataset_query_history()")
 async def get_query_history(n: int | None = None) -> list[str]:
+    """Retrieve last n query jobref ids.  If n is not specified, or n<1,
+    retrieve all query jobref ids.
+
+    This only works for whatever dataset has /api/tap as its endpoint.
+    """
+    data = _get_discovery()
+    if not data or "datasets" not in data:
+        return []
+    for dataset in data["datasets"]:
+        try:
+            url = data["datasets"][dataset]["services"]["tap"]["url"]
+        except KeyError:
+            continue
+        parsed_url = urlparse(url)
+        if url 
+
+async def _get_dataset_query_history_with_times(
+    str: dataset, n: int | None = None
+) -> list[Tuple(str, datetime.datetime)]:
+    return []
+
+async def get_dataset_query_history(
+    str: dataset, n: int | None = None
+) -> list[str]:
     """Retrieve last n query jobref ids.  If n is not specified, or n<1,
     retrieve all query jobref ids.
     """

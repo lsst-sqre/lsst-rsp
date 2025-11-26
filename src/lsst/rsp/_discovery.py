@@ -64,7 +64,7 @@ class InfluxDBCredentials(InfluxDBLocation):
     """Password to use for authentication."""
 
 
-def _get_discovery(path: Path) -> dict[str, Any]:
+def get_discovery(path: Path) -> dict[str, Any]:
     """Get the data and service discovery information.
 
     Parameters
