@@ -136,6 +136,9 @@ python_files = ["tests/*.py", "tests/*/*.py"]
 extend = "ruff-shared.toml"
 
 [tool.ruff.lint.extend-per-file-ignores]
+"src/lsst/rsp/client.py" = [
+    "PLR1714", # No, a set would be a worse way to do this comparison
+]
 "src/lsst/rsp/startup/**" = [
     "S606",    # Sometimes we really mean os.execve(), not subprocess.run()
 ]
