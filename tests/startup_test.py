@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-import lsst.rsp
+from lsst.rsp.startup import constants
 from lsst.rsp.startup.services.labrunner import LabRunner
 from lsst.rsp.utils import get_jupyterlab_config_dir, get_runtime_mounts_dir
 
@@ -367,7 +367,7 @@ def test_copy_etc_skel(monkeypatch: pytest.MonkeyPatch) -> None:
     lr = LabRunner()
     assert not (lr._home / ".gitconfig").exists()
     assert not (lr._home / ".pythonrc").exists()
-    etc = lsst.rsp.startup.constants.ETC_PATH
+    etc = constants.ETC_PATH
     prc = (etc / "skel" / ".pythonrc").read_text()
     prc += "\n# Local mods\n"
     (lr._home / ".pythonrc").write_text(prc)
