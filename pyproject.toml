@@ -15,6 +15,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Intended Audience :: Developers",
     "Natural Language :: English",
     "Operating System :: POSIX",
@@ -81,7 +82,6 @@ typing = [
 
 [tool.black]
 line-length = 79
-target-version = ["py313"]
 
 [tool.coverage.run]
 parallel = true
@@ -106,9 +106,18 @@ exclude_lines = [
 ]
 
 [tool.mypy]
-disallow_untyped_defs = true
 disallow_incomplete_defs = true
-exclude = "tests/data/files"
+disallow_untyped_defs = true
+enable_error_code = [
+    "deprecated",
+    "exhaustive-match",
+    "explicit-override",
+    "ignore-without-code",
+    "redundant-expr",
+    "redundant-self",
+    "truthy-iterable",
+    "unused-awaitable",
+]
 ignore_missing_imports = true
 local_partial_types = true
 no_implicit_reexport = true

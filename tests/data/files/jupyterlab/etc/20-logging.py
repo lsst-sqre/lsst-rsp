@@ -14,6 +14,7 @@ will not be recopied.
 import logging
 import os
 import sys
+from typing import Any
 
 customlogger = False
 
@@ -28,7 +29,7 @@ except ImportError:
 # Otherwise, use the default level (which is warning); however, lsst logs
 # should be at info level.
 debug = os.getenv("DEBUG")
-handlers = []
+handlers: list[Any] = []
 if customlogger:
     # Forward anything at INFO or above, unless debug is set, in which case,
     # forward DEBUG and above.

@@ -5,6 +5,7 @@ __all__ = ["IPythonHandler", "forward_lsst_log"]
 import html
 import logging
 import traceback
+from typing import override
 
 from IPython.display import HTML, display
 
@@ -60,6 +61,7 @@ class IPythonHandler(logging.Handler):
        )
     """
 
+    @override
     def emit(self, record: logging.LogRecord) -> None:
         """Emit a single log message.
 

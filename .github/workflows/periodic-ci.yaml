@@ -1,12 +1,19 @@
 # This is a separate run of the Python test suite that doesn't cache the tox
-# environment and runs from a schedule.  The purpose is to test compatibility
-# with the latest versions of dependencies.
+# environment and runs from a schedule. The purpose is to test whether
+# updating pinned dependencies would cause any tests to fail.
 
 name: Periodic CI
+
+env:
+  # Current supported uv version. The uv documentation recommends pinning
+  # this. The version should match the version used in .pre-commit-config.yaml
+  # and frozen in uv.lock. It is updated by make update-deps.
+  UV_VERSION: "0.9.18"
 
 "on":
   schedule:
     - cron: "0 12 * * 1"
+  workflow_dispatch: {}
 
 jobs:
   test:
@@ -17,16 +24,32 @@ jobs:
       matrix:
         python:
           - "3.12"
+          - "3.13"
+          - "3.14"
 
     steps:
       - uses: actions/checkout@v6
 
-      - name: Run tests in tox
-        uses: lsst-sqre/run-tox@v1
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
-          python-version: ${{ matrix.python }}
-          tox-envs: "lint,typing,py"
-          use-cache: false
+          version: ${{ env.UV_VERSION }}
+
+      - name: Update dependencies
+        run: make update-deps
+
+      - name: Run tox
+        run: uv run --only-group=tox tox run -e lint,typing,py
+
+      - name: Report status
+        if: failure()
+        uses: ravsamhq/notify-slack-action@v2
+        with:
+          status: ${{ job.status }}
+          notify_when: "failure"
+          notification_title: "Periodic test for {repo} failed"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_ALERT_WEBHOOK }}
 
   test-packaging:
     runs-on: ubuntu-latest
@@ -37,7 +60,20 @@ jobs:
         with:
           fetch-depth: 0 # full history for setuptools_scm
 
-      - name: Build and publish
-        uses: lsst-sqre/build-and-publish-to-pypi@v3
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
-          upload: false
+          version: ${{ env.UV_VERSION }}
+
+      - name: Build the package
+        run: uv build --no-sources
+
+      - name: Report status
+        if: failure()
+        uses: ravsamhq/notify-slack-action@v2
+        with:
+          status: ${{ job.status }}
+          notify_when: "failure"
+          notification_title: "Periodic packaging test for {repo} failed"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_ALERT_WEBHOOK }}

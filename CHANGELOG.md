@@ -6,6 +6,17 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.10.0'></a>
+## 0.10.0 (2025-12-17)
+
+### New features
+
+- Add `get_service_url` function that retrieves the URL for a given service and dataset from service discovery information.
+- Add `get_influxdb_location` function that gets InfluxDB connection information without credentials from service discovery information.
+- Add `get_influxdb_credentials` function that gets InfluxDB authentication credentials and connection information from a local Repertoire service, using a Gafaelfawr token for authentication.
+- Add `list_influxdb_labels` function that lists the available InfluxDB database labels for the local environment.
+- Use Repertoire discovery client to find Portal endpoint in RSP startup.
+
 <a id='changelog-0.9.7'></a>
 ## 0.9.7 (2025-08-26)
 
