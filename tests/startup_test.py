@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from lsst.rsp.startup import Launcher
+
 
 @pytest.mark.usefixtures("_rsp_env")
 def test_startup() -> None:
@@ -51,3 +53,29 @@ def test_startup() -> None:
         (k, v) = ln.split("=")
         if k in env:
             assert env[k] == v
+
+
+@pytest.mark.usefixtures("_rsp_env")
+def test_old_controller() -> None:
+    root = (Path(os.getenv("HOME", ""))).parent.parent
+    startup = root / "lab_startup"
+    command = ["env"]
+    (startup / "args.json").write_text(json.dumps(command))
+
+    # Lack of env file will be interpreted as old controller
+
+    lch = Launcher()
+    lch.load()
+
+    abnormal_env = {
+        x: lch._env[x] for x in lch._env if x.startswith("ABNORMAL")
+    }
+    assert abnormal_env == {
+        "ABNORMAL_STARTUP": "TRUE",
+        "ABNORMAL_STARTUP_ERRNO": "202",
+        "ABNORMAL_STARTUP_ERRORCODE": "EOLDNUB",
+        "ABNORMAL_STARTUP_STRERROR": "Nublado controller too old",
+        "ABNORMAL_STARTUP_MESSAGE": (
+            "Nublado controller 11.0.0 or greater required to launch this lab"
+        ),
+    }
