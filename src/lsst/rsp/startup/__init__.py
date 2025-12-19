@@ -1,3 +1,3 @@
-from ._launch import launch_lab
+from ._launch import Launcher, launch_lab
 
-__all__ = ["launch_lab"]
+__all__ = ["Launcher", "launch_lab"]
