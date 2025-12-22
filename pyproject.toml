@@ -28,7 +28,6 @@ dependencies = [
     "IPython",
     "pyvo",
     "httpx",
-    "rubin-repertoire",
     "xmltodict"
 ]
 dynamic = ["version"]

@@ -30,6 +30,7 @@ class Launcher:
                 error=RuntimeError("$HOME must be set; using /tmp instead")
             )
             home_str = "/tmp"
+            os.environ["HOME"] = "/tmp"
         self._home = Path(home_str)
         startup_path = os.getenv("RSP_STARTUP_PATH", "/lab_startup")
         self._startup_path = Path(startup_path)
@@ -102,15 +103,16 @@ class Launcher:
             "--ContentsManager.allow_hidden=True",
             "--FileContentsManager.hide_globs=[]",
             "--KernelSpecManager.ensure_native_kernel=False",
+            "--LabApp.check_for_updates_class=jupyterlab.NeverCheckForUpdate",
+            "--MappingKernelManager.default_kernel_name=lsst",
             "--QtExporter.enabled=False",
             "--PDFExporter.enabled=False",
+            "--ServerApp.root_dir=/",
             "--WebPDFExporter.allow_chromium_download=True",
-            "--MappingKernelManager.default_kernel_name=lsst",
-            "--LabApp.check_for_updates_class=jupyterlab.NeverCheckForUpdate",
         ]
-        cmd.append(f"--notebook-dir={self._home!s}")
         ll = "DEBUG" if self._debug else "INFO"
         cmd.append(f"--log-level={ll}")
+        cmd.append(f"--FileContentsManager.preferred_dir={self._home!s}")
         return cmd
 
     def _inject_path_if_needed(self) -> None:
