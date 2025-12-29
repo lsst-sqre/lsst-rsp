@@ -1,5 +1,6 @@
 """Utility functions for LSST JupyterLab notebook environment."""
 
+import json
 import os
 from contextlib import suppress
 from pathlib import Path
@@ -50,7 +51,32 @@ def get_hostname() -> str:
 
 
 def get_service_url(name: str, env_name: str | None = None) -> str:
-    """Get our best guess at the URL for the requested service."""
+    """Get our best guess at the URL for the requested service.
+
+    This is, confusingly, different from get_service_url() in _discovery.
+
+    We first try to do this by using discovery, and then if we fail, we fall
+    back to our prior heuristics.
+    """
+    # We iterate backwards through the datasets on the dubious grounds that
+    # the requestor probably wants the most recent dataset.
+
+    # Discovery imports get_access_token from here, so we can't just use its
+    # methods, so we roll our own.
+
+    try:
+        ds_obj = json.loads(Path("/etc/nublado/discovery/v1.json").read_text())
+    except Exception:
+        ds_obj = {}
+    datasets = list(ds_obj.keys())
+    datasets.reverse()
+    for ds in datasets:
+        url = ds_obj[ds]["services"].get(name, {}).get("url")
+        if url:
+            return url
+
+    # Ah well, a valiant try.
+
     if not env_name:
         env_name = name.upper()
 
