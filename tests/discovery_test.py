@@ -21,6 +21,7 @@ from lsst.rsp import (
     get_influxdb_credentials,
     get_influxdb_location,
     get_service_url,
+    list_datasets,
     list_influxdb_labels,
 )
 
@@ -104,6 +105,13 @@ def test_get_influxdb_credentials(
 
     with pytest.raises(UnknownInfluxDBError):
         get_influxdb_location("unknown", discovery_v1_path=discovery_v1_path)
+
+
+def test_list_datasets(discovery_v1_path: Path) -> None:
+    discovery = json.loads(discovery_v1_path.read_text())
+    datasets = sorted(discovery["datasets"].keys())
+
+    assert list_datasets(discovery_v1_path=discovery_v1_path) == datasets
 
 
 def test_list_influxdb_labels(discovery_v1_path: Path) -> None:

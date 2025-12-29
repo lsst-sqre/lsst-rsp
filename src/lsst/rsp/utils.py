@@ -68,10 +68,10 @@ def get_service_url(name: str, env_name: str | None = None) -> str:
         ds_obj = json.loads(Path("/etc/nublado/discovery/v1.json").read_text())
     except Exception:
         ds_obj = {}
-    datasets = list(ds_obj.keys())
+    datasets = list(ds_obj["datasets"].keys()) if "datasets" in ds_obj else []
     datasets.reverse()
     for ds in datasets:
-        url = ds_obj[ds]["services"].get(name, {}).get("url")
+        url = ds_obj["datasets"][ds]["services"].get(name, {}).get("url")
         if url:
             return url
 

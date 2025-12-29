@@ -8,6 +8,7 @@ from ._discovery import (
     get_influxdb_credentials,
     get_influxdb_location,
     get_service_url,
+    list_datasets,
     list_influxdb_labels,
 )
 from ._exceptions import (
@@ -76,6 +77,7 @@ __all__ = [
     "get_service_url",
     "get_siav2_service",
     "get_tap_service",
+    "list_datasets",
     "list_influxdb_labels",
     "retrieve_query",
 ]

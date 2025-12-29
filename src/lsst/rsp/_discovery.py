@@ -35,6 +35,7 @@ __all__ = [
     "get_influxdb_credentials",
     "get_influxdb_location",
     "get_service_url",
+    "list_datasets",
     "list_influxdb_labels",
 ]
 
@@ -244,6 +245,32 @@ def get_service_url(
     if not url:
         raise UnknownServiceError(service, dataset)
     return url
+
+
+def list_datasets(*, discovery_v1_path: Path | None = None) -> list[str]:
+    """List the available datasets in this environment.
+
+    Parameters
+    ----------
+    discovery_v1_path
+        Path to discovery information. This is intended for testing and should
+        normally not be provided. The default is the expected path to
+        discovery information within a Nublado notebook.
+
+    Returns
+    -------
+    list of str
+        Names of datasets in this environment.
+
+    Raises
+    ------
+    DiscoveryNotAvailableError
+        Raised if no service discovery information is available.
+    """
+    if not discovery_v1_path:
+        discovery_v1_path = _DISCOVERY_PATH
+    discovery = _get_discovery(discovery_v1_path)
+    return sorted(discovery.get("datasets", {}).keys())
 
 
 def list_influxdb_labels(

@@ -1,14 +1,19 @@
 """Test the RSPClient."""
 
+from pathlib import Path
+
 import pytest
 from pytest_httpx import HTTPXMock
 
 from lsst.rsp import get_query_history
 
 
-@pytest.mark.usefixtures("_rsp_env")
+@pytest.mark.usefixtures("_rsp_env", "discovery_v1_path")
 @pytest.mark.asyncio
-async def test_get_query_history(httpx_mock: HTTPXMock) -> None:
+async def test_get_query_history(
+    httpx_mock: HTTPXMock,
+    discovery_v1_path: Path,
+) -> None:
     """Ensure that get_query_history() works, which in turn will ensure
     that the RSPClient has the right headers and assembles its URL correctly.
     """
@@ -42,7 +47,11 @@ async def test_get_query_history(httpx_mock: HTTPXMock) -> None:
 </uws:jobs>"""
         ),
     )
-    jobs = await get_query_history()
-    assert jobs == ["phdl67i3tmklfdbz", "r4qyb04xesh7mbz3", "yk16agxjefl6gly6"]
+    jobs = await get_query_history(discovery_v1_path=discovery_v1_path)
+    assert jobs == [
+        "dp02:yk16agxjefl6gly6",
+        "dp02:phdl67i3tmklfdbz",
+        "dp02:r4qyb04xesh7mbz3",
+    ]
     # The httpx mock will throw an error at teardown if we did not exercise
     # the mock, so we know the request matched both the URL and the headers.
