@@ -897,7 +897,13 @@ class LabRunner:
     #
     def _launch(self) -> None:
         # Done with the discovery client: shut it down.
-        asyncio.run(self._discovery.aclose())
+        try:
+            asyncio.run(self._discovery.aclose())
+        except RuntimeError as exc:
+            if str(exc) == "Event loop is closed":
+                pass
+            else:
+                raise
         # We're about to start the lab: set the flag saying we're running
         # inside the lab.  It's used by shell startup.
         self._env["RUNNING_INSIDE_JUPYTERLAB"] = "TRUE"
