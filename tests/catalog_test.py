@@ -44,12 +44,12 @@ async def test_get_full_query_history(
     assert len(jobs) == 43  # We use this fact in a later test
     assert jobs == [
         "dp03:sw1qsdt9sumffw96",
-        "dp02:zka3udcur0haunx2",
-        "dp02:l34ghit5y6cyebqt",
-        "dp02:me7z4mj6axxy62lq",
-        "dp02:y5i6ws95bcs1ssws",
-        "dp02:n5473f1vbil8yh7j",
-        "dp02:bafxydysxdr92f1m",
+        "dp1:zka3udcur0haunx2",
+        "dp1:l34ghit5y6cyebqt",
+        "dp1:me7z4mj6axxy62lq",
+        "dp1:y5i6ws95bcs1ssws",
+        "dp1:n5473f1vbil8yh7j",
+        "dp1:bafxydysxdr92f1m",
         "dp03:x6vqdjyzt4mlhvom",
         "dp03:hwigwqxmbvqpp0of",
         "dp03:qfyhs7id9nqjwiph",
@@ -81,11 +81,11 @@ async def test_get_full_query_history(
         "dp03:px47av5ws7i8wsqv",
         "dp03:jx25n0e0oqwzrti5",
         "dp03:sie0q08xeml7k81m",
-        "dp02:i335lz8kulmm00md",
-        "dp02:g3j96lqi2ojq7z2c",
-        "dp02:t8fcryvzzsvc6zsx",
-        "dp02:shwp5pj245z5pg0t",
-        "dp02:b14h0uj4acef4wxd",
+        "dp1:i335lz8kulmm00md",
+        "dp1:g3j96lqi2ojq7z2c",
+        "dp1:t8fcryvzzsvc6zsx",
+        "dp1:shwp5pj245z5pg0t",
+        "dp1:b14h0uj4acef4wxd",
     ]
     # The httpx mock will throw an error at teardown if we did not exercise
     # the mock, so we know the request matched both the URL and the headers.
@@ -125,10 +125,10 @@ async def test_get_partial_query_history(
     )
     assert jobs == [
         "dp03:sw1qsdt9sumffw96",
-        "dp02:zka3udcur0haunx2",
-        "dp02:l34ghit5y6cyebqt",
-        "dp02:me7z4mj6axxy62lq",
-        "dp02:y5i6ws95bcs1ssws",
+        "dp1:zka3udcur0haunx2",
+        "dp1:l34ghit5y6cyebqt",
+        "dp1:me7z4mj6axxy62lq",
+        "dp1:y5i6ws95bcs1ssws",
     ]
 
 
@@ -174,6 +174,7 @@ async def test_client_deduplication(
     discovery_v1_path: Path,
 ) -> None:
     datasets = list_datasets(discovery_v1_path=discovery_v1_path)
+    datasets.reverse()
     client: dict[str, RSPClient] = {}
     seen_endpoints: set[str] = set()
     for ds in datasets:
@@ -183,8 +184,8 @@ async def test_client_deduplication(
                 seen_endpoints.add(url)
                 client[ds] = RSPClient(url)
     assert len(datasets) == 3
-    assert datasets == ["dp02", "dp03", "dp1"]
-    assert list(client.keys()) == ["dp02", "dp03"]
+    assert datasets == ["dp1", "dp03", "dp02"]
+    assert list(client.keys()) == ["dp1", "dp03"]
 
 
 @pytest.mark.usefixtures("_rsp_env", "discovery_v1_path")
@@ -253,11 +254,11 @@ async def test_error_responses(
         limit=5, discovery_v1_path=discovery_v1_path
     )
     assert jobs == [
-        "dp02:zka3udcur0haunx2",
-        "dp02:l34ghit5y6cyebqt",
-        "dp02:me7z4mj6axxy62lq",
-        "dp02:y5i6ws95bcs1ssws",
-        "dp02:n5473f1vbil8yh7j",
+        "dp1:zka3udcur0haunx2",
+        "dp1:l34ghit5y6cyebqt",
+        "dp1:me7z4mj6axxy62lq",
+        "dp1:y5i6ws95bcs1ssws",
+        "dp1:n5473f1vbil8yh7j",
     ]
 
 

@@ -103,8 +103,8 @@ async def get_query_history(
     Parameters
     ----------
     limit
-        Maximum number of query IDs to return.  If n is not specified or n<1,
-        return all query IDs.
+        Maximum number of query IDs to return.  If limit is not specified
+        or limit<1, return all query IDs.
     discovery_v1_path
         Path to discovery information. This is intended for testing and should
         normally not be provided. The default is the expected path to
@@ -127,6 +127,7 @@ async def get_query_history(
     to send the query to.  If no colon exists, it's at "/api/tap".
     """
     datasets = list_datasets(discovery_v1_path=discovery_v1_path)
+    datasets.reverse()
     # Some datasets share an endpoint.  In that case, we only want to get
     # the n most recent for a given endpoint, so we do some deduplication
     # here.  (So, for instance, if dp1 and dp02 share "/api/tap", what we
@@ -136,6 +137,12 @@ async def get_query_history(
     # It won't matter in that case whether we assign the query as having
     # belonged to dp1 or dp02, because it's the endpoint:query_id tuple
     # that is unique.
+    #
+    # The reverse() is on shaky grounds.  Thus far, in the service discovery
+    # document, later datasets get added at the bottom.  Thus, we're going to
+    # assume that for a duplicated endpoint, we want the *last* occurrence of
+    # it because that is likely to be the most recent and therefore is likely
+    # to be the one people probably are most likely to want to look at.
     client: dict[str, RSPClient] = {}
     seen_endpoints: set[str] = set()
     for ds in datasets:
