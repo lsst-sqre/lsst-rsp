@@ -50,10 +50,16 @@ def get_hostname() -> str:
     return os.environ.get("HOSTNAME") or "localhost"
 
 
-def get_service_url(name: str, env_name: str | None = None) -> str:
+def guess_service_url(
+    name: str,
+    env_name: str | None = None,
+    *,
+    v1_discovery_path: Path | None = None,
+) -> str:
     """Get our best guess at the URL for the requested service.
 
-    This is, confusingly, different from get_service_url() in _discovery.
+    This has been renamed from get_service_url(); users should
+    generally instead use get_service_url() in _discovery.
 
     We first try to do this by using discovery, and then if we fail, we fall
     back to our prior heuristics.
@@ -64,8 +70,10 @@ def get_service_url(name: str, env_name: str | None = None) -> str:
     # Discovery imports get_access_token from here, so we can't just use its
     # methods, so we roll our own.
 
+    if v1_discovery_path is None:
+        v1_discovery_path = Path("/etc/nublado/discovery/v1.json")
     try:
-        ds_obj = json.loads(Path("/etc/nublado/discovery/v1.json").read_text())
+        ds_obj = json.loads(v1_discovery_path.read_text())
     except Exception:
         ds_obj = {}
     datasets = list(ds_obj["datasets"].keys()) if "datasets" in ds_obj else []
@@ -102,14 +110,14 @@ def get_pyvo_auth() -> pyvo.auth.authsession.AuthSession | None:
     auth.credentials.set("lsst-token", s)
 
     service_endpoints = {
-        "tap": get_service_url("tap"),
-        "obstap": get_service_url("obstap"),
-        "ssotap": get_service_url("ssotap"),
-        "consdbtap": get_service_url("consdbtap"),
-        "live": get_service_url("live"),
-        "sia": get_service_url("sia"),
-        "cutout": get_service_url("cutout"),
-        "datalink": get_service_url("datalink"),
+        "tap": guess_service_url("tap"),
+        "obstap": guess_service_url("obstap"),
+        "ssotap": guess_service_url("ssotap"),
+        "consdbtap": guess_service_url("consdbtap"),
+        "live": guess_service_url("live"),
+        "sia": guess_service_url("sia"),
+        "cutout": guess_service_url("cutout"),
+        "datalink": guess_service_url("datalink"),
     }
 
     for name, url in service_endpoints.items():

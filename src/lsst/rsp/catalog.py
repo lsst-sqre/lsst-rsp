@@ -1,17 +1,17 @@
 """Utility functions to get clients for TAP catalog search."""
 
+import logging
 import warnings
 from pathlib import Path
 from typing import Any
 
-import httpx
 import pyvo
 import xmltodict
 from deprecated import deprecated
 
-from ._discovery import list_datasets
+from ._discovery import get_service_url, list_datasets
 from .client import RSPClient
-from .utils import get_pyvo_auth, get_service_url
+from .utils import get_pyvo_auth, guess_service_url
 
 
 @deprecated(reason='Please use get_tap_service("tap")')
@@ -33,7 +33,14 @@ def get_tap_service(*args: str) -> pyvo.dal.TAPService:
     ----------
     args
         First arg is the name of the requested TAP service.  The rest are
-        ignored.  If args is the empty list, "tap" is assumed.
+        ignored.  If args is empty, defaults to "tap" (deprecated
+        behavior).
+
+    Notes
+    -----
+        This method will soon be deprecated in favor of ``get_service_url()``
+    from ``_discovery``, which requires specifying a dataset as well as a
+    service.
     """
     if len(args) == 0:
         warnings.warn(
@@ -51,7 +58,7 @@ def get_tap_service(*args: str) -> pyvo.dal.TAPService:
         database = "live"
 
     if database in ("live", "tap", "ssotap", "consdbtap"):
-        tap_url = get_service_url(database)
+        tap_url = guess_service_url(database)
     else:
         raise ValueError(f"{database} is not a valid tap service")
 
@@ -88,14 +95,14 @@ def retrieve_query(query_url: str) -> pyvo.dal.AsyncTAPJob:
 
 
 async def get_query_history(
-    n: int | None = None, *, discovery_v1_path: Path | None = None
+    limit: int | None = None, *, discovery_v1_path: Path | None = None
 ) -> list[str]:
-    """Retrieve last n query jobref ids.  If n is not specified, or n<1,
-    retrieve all query jobref ids.
+    """Retrieve last ``limit`` query jobref ids.  If n is not specified,
+    or limit<1, retrieve all query jobref ids.
 
     Parameters
     ----------
-    n
+    limit
         Maximum number of query IDs to return.  If n is not specified or n<1,
         return all query IDs.
     discovery_v1_path
@@ -132,37 +139,45 @@ async def get_query_history(
     client: dict[str, RSPClient] = {}
     seen_endpoints: set[str] = set()
     for ds in datasets:
-        url = get_service_url("tap", ds)
+        url = get_service_url("tap", ds, discovery_v1_path=discovery_v1_path)
         if url:
             if url not in seen_endpoints:
                 seen_endpoints.add(url)
                 client[ds] = RSPClient(url)
 
-    params: dict[str, str] = {}
-    params = {"last": f"{n}"} if n and n > 0 else {}
-    resp: dict[str, httpx.Response] = {}
+    params = {"last": f"{limit}"} if limit and limit > 0 else {}
     history: dict[str, Any] = {}
-    qlist: list[dict[str, Any]] = []
+    jobs: list[dict[str, Any]] = []
+    logging.basicConfig()
+    logger = logging.getLogger(__name__)
     for ds, ds_client in client.items():
-        resp[ds] = await ds_client.get("async", params=params)
-        history[ds] = xmltodict.parse(
-            resp[ds].text, force_list=("uws:jobref",)
-        )
+        resp = await ds_client.get("async", params=params)
+        status = resp.status_code
+        if status < 400:
+            history[ds] = xmltodict.parse(
+                resp.text, force_list=("uws:jobref",)
+            )
+        else:
+            logger.warning(f"Job list request failed with status {status}")
 
     for ds, history_ds in history.items():
         if "uws:jobs" in history_ds:
             if "uws:jobref" in history_ds["uws:jobs"]:
                 for entry in history_ds["uws:jobs"]["uws:jobref"]:
                     # Annotate with dataset name
-                    entry["__uws:dataset"] = ds
-                    qlist.append(entry)
+                    entry["__dataset__"] = ds
+                    jobs.append(entry)
 
     # It appears that uws:creationTime can be lexically sorted and will do
-    # the right thing.
-    qlist.sort(key=lambda x: x["uws:creationTime"], reverse=True)
+    # the right thing.  If it is somehow missing, we assign it the Unix
+    # epoch (it should never be missing).
+    jobs.sort(
+        key=lambda x: x.get("uws:creationTime", "1970-01-01T00:00:00.000Z"),
+        reverse=True,
+    )
 
     # Trim list to size, if requested
-    last_n = qlist[:n] if n is not None and n > 0 else qlist
+    last_limit = jobs[:limit] if limit is not None and limit > 0 else jobs
 
     # Return list of dataset:query_id
-    return [f"{x['__uws:dataset']}:{x['@id']}" for x in last_n]
+    return [f"{x['__dataset__']}:{x['@id']}" for x in last_limit]

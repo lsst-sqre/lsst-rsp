@@ -6,7 +6,7 @@ from pyvo.dal import SIA2Service
 from pyvo.dal.adhoc import DatalinkResults
 from pyvo.dal.sia2 import ObsCoreRecord
 
-from .utils import get_pyvo_auth, get_service_url
+from .utils import get_pyvo_auth, guess_service_url
 
 
 def get_datalink_result(result: ObsCoreRecord) -> DatalinkResults:
@@ -31,7 +31,7 @@ def get_siav2_service(data_release: str) -> SIA2Service:
             raise ValueError("RSP_SITE_TYPE environment variable is not set")
         raise ValueError(f"{label} data not available at your location")
 
-    sia_url = get_service_url(f"sia/{data_release}")
+    sia_url = guess_service_url(f"sia/{data_release}")
     if not sia_url:
         raise RuntimeError(
             f"Failed to determine service URL for data release: {data_release}"

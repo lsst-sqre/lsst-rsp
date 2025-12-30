@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<uws:jobs xmlns:uws="http://www.ivoa.net/xml/UWS/v1.0" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1">
+  <uws:jobref id="sw1qsdt9sumffw96">
+    <uws:phase>COMPLETED</uws:phase>
+    <uws:runId>dp03_catalogs_10yr.SSObject - data</uws:runId>
+    <uws:ownerId>adam</uws:ownerId>
+    <uws:creationTime>2025-12-29T20:28:21.393Z</uws:creationTime>
+  </uws:jobref>
+  <uws:jobref id="x6vqdjyzt4mlhvom">
+    <uws:phase>COMPLETED</uws:phase>
+    <uws:ownerId>adam</uws:ownerId>
+    <uws:creationTime>2025-11-05T05:25:17.318Z</uws:creationTime>
+  </uws:jobref>
+  <uws:jobref id="hwigwqxmbvqpp0of">
+    <uws:phase>COMPLETED</uws:phase>
+    <uws:ownerId>adam</uws:ownerId>
+    <uws:creationTime>2025-11-05T05:25:16.069Z</uws:creationTime>
+  </uws:jobref>
+  <uws:jobref id="qfyhs7id9nqjwiph">
+    <uws:phase>COMPLETED</uws:phase>
+    <uws:ownerId>adam</uws:ownerId>
+    <uws:creationTime>2025-11-05T05:25:14.825Z</uws:creationTime>
+  </uws:jobref>
+  <uws:jobref id="x8wek4z6pp4xjjy9">
+    <uws:phase>COMPLETED</uws:phase>
+    <uws:ownerId>adam</uws:ownerId>
+    <uws:creationTime>2025-11-05T05:25:13.570Z</uws:creationTime>
+  </uws:jobref>
+</uws:jobs>
