@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.10.2'></a>
+## 0.10.2 (2025-12-30)
+
+### Other changes
+
+- Remove extraneous changelog fragment.
+
 <a id='changelog-0.10.1'></a>
 ## 0.10.1 (2025-12-30)
 
