@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<uws:jobs xmlns:uws="http://www.ivoa.net/xml/UWS/v1.0" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1">
+  <uws:jobref id="b14h0uj4acef4wxd">
+    <uws:phase>COMPLETED</uws:phase>
+    <uws:runId>ivoa.ObsCore - data</uws:runId>
+    <uws:ownerId>adam</uws:ownerId>
+    <uws:creationTime>2025-09-12T21:36:52.656Z</uws:creationTime>
+  </uws:jobref>
+  <uws:jobref id="bafxydysxdr92f1m">
+    <uws:phase>COMPLETED</uws:phase>
+    <uws:runId>ivoa.ObsCore - data</uws:runId>
+    <uws:ownerId>adam</uws:ownerId>
+    <uws:creationTime>2025-11-19T02:23:59.296Z</uws:creationTime>
+  </uws:jobref>
+  <uws:jobref id="g3j96lqi2ojq7z2c">
+    <uws:phase>COMPLETED</uws:phase>
+    <uws:runId>ivoa.ObsCore - data</uws:runId>
+    <uws:ownerId>adam</uws:ownerId>
+    <uws:creationTime>2025-10-16T22:28:41.343Z</uws:creationTime>
+  </uws:jobref>
+  <uws:jobref id="i335lz8kulmm00md">
+    <uws:phase>COMPLETED</uws:phase>
+    <uws:runId>ivoa.ObsCore - data</uws:runId>
+    <uws:ownerId>adam</uws:ownerId>
+    <uws:creationTime>2025-10-16T22:54:59.291Z</uws:creationTime>
+  </uws:jobref>
+  <uws:jobref id="l34ghit5y6cyebqt">
+    <uws:phase>COMPLETED</uws:phase>
+    <uws:runId>ivoa.ObsCore - data</uws:runId>
+    <uws:ownerId>adam</uws:ownerId>
+    <uws:creationTime>2025-12-29T20:24:39.276Z</uws:creationTime>
+  </uws:jobref>
+  <uws:jobref id="me7z4mj6axxy62lq">
+    <uws:phase>COMPLETED</uws:phase>
+    <uws:runId>ivoa.ObsCore - data - 1</uws:runId>
+    <uws:ownerId>adam</uws:ownerId>
+    <uws:creationTime>2025-12-16T16:47:36.839Z</uws:creationTime>
+  </uws:jobref>
+  <uws:jobref id="n5473f1vbil8yh7j">
+    <uws:phase>COMPLETED</uws:phase>
+    <uws:ownerId>adam</uws:ownerId>
+    <uws:creationTime>2025-11-21T23:57:39.937Z</uws:creationTime>
+  </uws:jobref>
+  <uws:jobref id="shwp5pj245z5pg0t">
+    <uws:phase>COMPLETED</uws:phase>
+    <uws:runId>ivoa.ObsCore - data</uws:runId>
+    <uws:ownerId>adam</uws:ownerId>
+    <uws:creationTime>2025-10-01T16:22:33.197Z</uws:creationTime>
+  </uws:jobref>
+  <uws:jobref id="t8fcryvzzsvc6zsx">
+    <uws:phase>COMPLETED</uws:phase>
+    <uws:runId>ivoa.ObsCore - data - 1</uws:runId>
+    <uws:ownerId>adam</uws:ownerId>
+    <uws:creationTime>2025-10-01T16:27:35.224Z</uws:creationTime>
+  </uws:jobref>
+  <uws:jobref id="y5i6ws95bcs1ssws">
+    <uws:phase>COMPLETED</uws:phase>
+    <uws:runId>ivoa.ObsCore - data</uws:runId>
+    <uws:ownerId>adam</uws:ownerId>
+    <uws:creationTime>2025-12-16T16:47:19.311Z</uws:creationTime>
+  </uws:jobref>
+  <uws:jobref id="zka3udcur0haunx2">
+    <uws:phase>COMPLETED</uws:phase>
+    <uws:runId>dp02_dc2_catalogs.ObsCore - data</uws:runId>
+    <uws:ownerId>adam</uws:ownerId>
+    <uws:creationTime>2025-12-29T20:24:59.896Z</uws:creationTime>
+  </uws:jobref>
+</uws:jobs>

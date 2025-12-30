@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.10.1'></a>
+## 0.10.1 (2025-12-30)
+
+### New features
+
+- Query across all discovered datasets for history query.
+
 <a id='changelog-0.10.0'></a>
 ## 0.10.0 (2025-12-17)
 

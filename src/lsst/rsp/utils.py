@@ -1,5 +1,6 @@
 """Utility functions for LSST JupyterLab notebook environment."""
 
+import json
 import os
 from contextlib import suppress
 from pathlib import Path
@@ -49,8 +50,41 @@ def get_hostname() -> str:
     return os.environ.get("HOSTNAME") or "localhost"
 
 
-def get_service_url(name: str, env_name: str | None = None) -> str:
-    """Get our best guess at the URL for the requested service."""
+def guess_service_url(
+    name: str,
+    env_name: str | None = None,
+    *,
+    v1_discovery_path: Path | None = None,
+) -> str:
+    """Get our best guess at the URL for the requested service.
+
+    This has been renamed from get_service_url(); users should
+    generally instead use get_service_url() in _discovery.
+
+    We first try to do this by using discovery, and then if we fail, we fall
+    back to our prior heuristics.
+    """
+    # We iterate backwards through the datasets on the dubious grounds that
+    # the requestor probably wants the most recent dataset.
+
+    # Discovery imports get_access_token from here, so we can't just use its
+    # methods, so we roll our own.
+
+    if v1_discovery_path is None:
+        v1_discovery_path = Path("/etc/nublado/discovery/v1.json")
+    try:
+        ds_obj = json.loads(v1_discovery_path.read_text())
+    except Exception:
+        ds_obj = {}
+    datasets = list(ds_obj["datasets"].keys()) if "datasets" in ds_obj else []
+    datasets.reverse()
+    for ds in datasets:
+        url = ds_obj["datasets"][ds]["services"].get(name, {}).get("url")
+        if url:
+            return url
+
+    # Ah well, a valiant try.
+
     if not env_name:
         env_name = name.upper()
 
@@ -76,14 +110,14 @@ def get_pyvo_auth() -> pyvo.auth.authsession.AuthSession | None:
     auth.credentials.set("lsst-token", s)
 
     service_endpoints = {
-        "tap": get_service_url("tap"),
-        "obstap": get_service_url("obstap"),
-        "ssotap": get_service_url("ssotap"),
-        "consdbtap": get_service_url("consdbtap"),
-        "live": get_service_url("live"),
-        "sia": get_service_url("sia"),
-        "cutout": get_service_url("cutout"),
-        "datalink": get_service_url("datalink"),
+        "tap": guess_service_url("tap"),
+        "obstap": guess_service_url("obstap"),
+        "ssotap": guess_service_url("ssotap"),
+        "consdbtap": guess_service_url("consdbtap"),
+        "live": guess_service_url("live"),
+        "sia": guess_service_url("sia"),
+        "cutout": guess_service_url("cutout"),
+        "datalink": guess_service_url("datalink"),
     }
 
     for name, url in service_endpoints.items():
