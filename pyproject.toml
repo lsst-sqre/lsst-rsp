@@ -28,6 +28,7 @@ dependencies = [
     "IPython",
     "pyvo",
     "httpx",
+    "rubin-repertoire",
     "xmltodict"
 ]
 dynamic = ["version"]
@@ -145,7 +146,6 @@ extend = "ruff-shared.toml"
     "PLR1714", # No, a set would be a worse way to do this comparison
 ]
 "src/lsst/rsp/startup/_launch.py" = [
-    "S108",    # We really mean to fall back to literal /tmp
     "S606",    # Sometimes we really mean os.execvpe(), not subprocess.run()
 ]
 "tests/data/files/**" = [
