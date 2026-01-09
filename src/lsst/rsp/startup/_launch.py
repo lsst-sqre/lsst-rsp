@@ -102,9 +102,10 @@ class Launcher:
             "--ContentsManager.allow_hidden=True",
             "--FileContentsManager.hide_globs=[]",
             "--KernelSpecManager.ensure_native_kernel=False",
+            "--LatexExporter.enabled=False",
             "--QtExporter.enabled=False",
             "--PDFExporter.enabled=False",
-            "--WebPDFExporter.allow_chromium_download=True",
+            "--WebPDFExporter.enabled=False",
             "--MappingKernelManager.default_kernel_name=lsst",
             "--LabApp.check_for_updates_class=jupyterlab.NeverCheckForUpdate",
         ]
@@ -142,7 +143,7 @@ class Launcher:
             # We're guessing the reason we have a problem is that we
             # were started from a Nublado controller too old to write files
             # to a shared startup space.
-            _min_nublado_ver = "11.0.0"  # A guess until we release it.
+            _min_nublado_ver = "11.0.0"
             self._env["ABNORMAL_STARTUP_ERRNO"] = "202"
             self._env["ABNORMAL_STARTUP_ERRORCODE"] = "EOLDNUB"
             self._env["ABNORMAL_STARTUP_STRERROR"] = (
