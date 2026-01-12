@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from lsst.rsp.startup import Launcher
+from lsst.rsp.startup._deprecated.constants import NUBLADO_TOO_OLD
 
 
 @pytest.mark.usefixtures("_rsp_env")
@@ -55,17 +56,17 @@ def test_startup() -> None:
             assert env[k] == v
 
 
-@pytest.mark.usefixtures("_rsp_env")
+@pytest.mark.usefixtures("_deprecated_rsp_env")
 def test_old_controller() -> None:
-    root = (Path(os.getenv("HOME", ""))).parent.parent
-    startup = root / "lab_startup"
-    command = ["env"]
-    (startup / "args.json").write_text(json.dumps(command))
-
     # Lack of env file will be interpreted as old controller
 
     lch = Launcher()
-    lch.load()
+    with pytest.raises(FileNotFoundError):
+        # We're not set up all the way; there's no jupyterhub-singleuser
+        # binary here, so the exec fails.  That's fine, we got far enough
+        # to tell we tried to launch the old way.
+        with pytest.warns(DeprecationWarning, match=NUBLADO_TOO_OLD):
+            lch.load()
 
     abnormal_env = {
         x: lch._env[x] for x in lch._env if x.startswith("ABNORMAL")
@@ -76,6 +77,7 @@ def test_old_controller() -> None:
         "ABNORMAL_STARTUP_ERRORCODE": "EOLDNUB",
         "ABNORMAL_STARTUP_STRERROR": "Nublado controller too old",
         "ABNORMAL_STARTUP_MESSAGE": (
-            "Nublado controller 11.0.0 or greater required to launch this lab"
+            "Nublado controller 11.0.0 or greater required to launch this lab;"
+            " falling back to older startup implementation"
         ),
     }

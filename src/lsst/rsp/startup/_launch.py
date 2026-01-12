@@ -1,4 +1,8 @@
-"""Launcher for the user's JupyterLab."""
+"""Launcher for the user's JupyterLab.
+
+It expects to find a directory named /lab_startup, in which it will have
+an env.json file which will contain
+"""
 
 import contextlib
 import errno
@@ -7,6 +11,8 @@ import logging
 import os
 import sys
 from pathlib import Path
+
+from ._deprecated.services.labrunner import LabRunner
 
 __all__ = ["Launcher", "launch_lab"]
 
@@ -24,6 +30,7 @@ class Launcher:
             logging.basicConfig(level=logging.DEBUG)
         else:
             logging.basicConfig(level=logging.INFO)
+        self._broken = False
         home_str = os.getenv("HOME", "")
         if not home_str:
             self._set_broken(
@@ -40,14 +47,53 @@ class Launcher:
         )
 
     def load(self) -> None:
+        """Load the environment and startup command for the user lab.
+
+        Note
+        ----
+        If we think something seems wrong about the /lab_startup directory
+        or the environment file that suggests we were launched from a
+        Nublado controller prior to version 11, we fall back to attempting
+        an older (now deprecated) launch of the lab, but we also set the
+        startup environment such that the lab will warn the user that the
+        Nublado controller needs to be upgraded.
+
+        Other failures will display a similar warning but will attempt a
+        new-style launch with default values for the environment or command
+        or both.
+        """
+        env_file = self._startup_path / "env.json"
+        if (
+            not self._startup_path.exists()
+            or not self._startup_path.is_dir()
+            or not env_file.exists()
+        ):
+            try:
+                # This will fail, but possibly in different ways, all,
+                # however, in ways that throw an exception, which we can then
+                # report.
+                #
+                # This is likely to be an old-controller error, since
+                # either /lab_startup isn't there, or isn't a directory, or
+                # no env.json file exists within it.
+                env_file.read_text()
+            except Exception as exc:
+                self._set_broken(exc, old_controller=True)
+                self._logger.exception("Problem loading startup files")
+                self._logger.warning("Falling back to deprecated startup")
+                # Set up abnormal startup in actual environment
+                for e in ("", "_ERRNO", "_STRERROR", "_MESSAGE", "_ERRORCODE"):
+                    key = f"ABNORMAL_STARTUP{e}"
+                    os.environ[key] = self._env[key]
+                LabRunner(broken=True).go()
+                return  # never reached
         try:
             env = json.loads((self._startup_path / "env.json").read_text())
             self._env.update(env)
             self._env_loaded = True
         except Exception as exc:
             self._logger.exception("Could not load environment file")
-            self._set_broken(exc, old_controller=True)
-
+            self._set_broken(exc)
         ni_cmd = self._startup_path / "noninteractive.json"
         if ni_cmd.exists():
             try:
@@ -66,12 +112,17 @@ class Launcher:
                 )
             except Exception as exc:
                 self._logger.exception("Could not load command file")
-                self._set_broken(exc, old_controller=True)
+                self._set_broken(exc)
 
     def launch(self) -> None:
+        """Start the user Lab."""
         if not self._command or not self._env:
-            # Try to load command and environment
+            # Try to load command and environment.
             self.load()
+            # If we think it was a too-old-controller problem, we will
+            # never reach here, as we will have fallen back to the old
+            # launcher.  If we get here, we're pretty sure it's the
+            # new-style launcher but something may still be wrong.
         if not self._command:
             self._logger.warning("No command given; using default")
             self._command = self._get_default_command()
@@ -91,8 +142,8 @@ class Launcher:
     def _get_default_command(self) -> list[str]:
         """Return default command to launch a Lab.
 
-        We can retire this once all RSP sites are running a sufficiently
-        new Nublado controller.
+        This a failsafe designed to get the Lab up and running so it
+        can display a modal dialog to the user explaining the problem.
         """
         cmd = [
             "jupyterhub-singleuser",
@@ -135,9 +186,10 @@ class Launcher:
         """Set the environment variables for the launched lab that will
         cause it to display a warning on startup.
         """
-        if self._env.get("ABNORMAL_STARTUP") == "TRUE":
+        if self._broken:
             # We're already broken; go with the earlier problem.
             return
+        self._broken = True
         self._env["ABNORMAL_STARTUP"] = "TRUE"
         if old_controller:
             # We're guessing the reason we have a problem is that we
@@ -151,7 +203,8 @@ class Launcher:
             )
             self._env["ABNORMAL_STARTUP_MESSAGE"] = (
                 f"Nublado controller {_min_nublado_ver} or greater"
-                " required to launch this lab"
+                " required to launch this lab; falling back to older"
+                " startup implementation"
             )
             return
         self._env["ABNORMAL_STARTUP_MESSAGE"] = str(error)
