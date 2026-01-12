@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.11.0'></a>
+## 0.11.0 (2026-01-12)
+
+### Backwards-incompatible changes
+
+- Deprecate lsst.rsp.startup and replace with launcher stub.
+
 <a id='changelog-0.10.2'></a>
 ## 0.10.2 (2025-12-30)
 
