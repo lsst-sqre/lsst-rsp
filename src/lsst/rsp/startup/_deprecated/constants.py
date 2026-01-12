@@ -6,6 +6,7 @@ __all__ = [
     "APP_NAME",
     "ETC_PATH",
     "MAX_NUMBER_OUTPUTS",
+    "NUBLADO_TOO_OLD",
     "PREVIOUS_LOGGING_CHECKSUMS",
 ]
 
@@ -14,6 +15,10 @@ APP_NAME = "nublado"
 
 ETC_PATH = Path("/etc")
 """Configuration directory, usually /etc, but overrideable for tests."""
+
+NUBLADO_TOO_OLD = (
+    "Please upgrade the RSP Nublado controller to version >= 11.0.0"
+)
 
 PREVIOUS_LOGGING_CHECKSUMS = [
     "2997fe99eb12846a1b724f0b82b9e5e6acbd1d4c29ceb9c9ae8f1ef5503892ec"

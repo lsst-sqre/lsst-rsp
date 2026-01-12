@@ -1,16 +1,16 @@
 """Pytest configuration and fixtures."""
 
-import contextlib
-import os
+import contextlib  # only for deprecated items
+import os  # only for deprecated items
 from collections.abc import Iterator
 from pathlib import Path
-from shutil import copytree
+from shutil import copytree  # only for deprecated items
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from unittest.mock import patch  # only for deprecated items
 
 import pytest
 
-from lsst.rsp.startup.storage.command import Command
+from lsst.rsp.startup._deprecated.storage.command import Command
 
 
 @pytest.fixture
@@ -18,47 +18,71 @@ def discovery_v1_path() -> Path:
     return Path(__file__).parent / "data" / "discovery" / "v1.json"
 
 
-# Things for startup/labrunner
+# Things for startup
 
 
 @pytest.fixture
-def _rsp_paths(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+def _rsp_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    with TemporaryDirectory() as fake_root:
+        file_dir = Path(__file__).parent / "data" / "files"
+        t_home = Path(fake_root) / "home" / "hambone"
+        t_home.mkdir(parents=True)
+        homedir = str(t_home)
+        t_start = Path(fake_root) / "lab_startup"
+        t_start.mkdir()
+        monkeypatch.setenv(
+            "NUBLADO_RUNTIME_MOUNTS_DIR", str(file_dir / "etc" / "nublado")
+        )
+        monkeypatch.setenv(
+            "JUPYTERLAB_CONFIG_DIR", str(file_dir / "jupyterlab")
+        )
+        monkeypatch.setenv("RSP_STARTUP_PATH", f"{t_start!s}")
+        monkeypatch.setenv("HOME", homedir)
+        yield
+
+
+# Things for deprecated startup
+
+
+@pytest.fixture
+def _deprecated_rsp_paths(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     # For each of these, we want to cover both the "from ..constants import"
     # and the "import lsst.rsp.constants" case.
+    #
+    # Only for use with the deprecated startup code.
     with patch(
-        "lsst.rsp.startup.services.labrunner.labrunner.ETC_PATH",
+        "lsst.rsp.startup._deprecated.services.labrunner.labrunner.ETC_PATH",
         (Path(__file__).parent / "data" / "files" / "etc"),
     ):
         with patch(
-            "lsst.rsp.startup.constants.ETC_PATH",
+            "lsst.rsp.startup._deprecated.constants.ETC_PATH",
             (Path(__file__).parent / "data" / "files" / "etc"),
         ):
             yield
 
 
 @pytest.fixture
-def _rsp_env(
-    _rsp_paths: None, monkeypatch: pytest.MonkeyPatch
+def _deprecated_rsp_env(
+    monkeypatch: pytest.MonkeyPatch,
+    _deprecated_rsp_paths: None,
 ) -> Iterator[None]:
-    file_dir = Path(__file__).parent / "data" / "files"
-    template = file_dir / "homedir"
-    monkeypatch.setenv(
-        "NUBLADO_RUNTIME_MOUNTS_DIR", str(file_dir / "etc" / "nublado")
-    )
-    monkeypatch.setenv(
-        "JUPYTERLAB_CONFIG_DIR",
-        str(file_dir / "jupyterlab"),
-    )
     with contextlib.suppress(KeyError):
         monkeypatch.delenv("TMPDIR")
         monkeypatch.delenv("DAF_BUTLER_CACHE_DIRECTORY")
     with TemporaryDirectory() as fake_root:
-        t_home = Path(fake_root) / "home"
-        t_home.mkdir()
+        t_home = Path(fake_root) / "home" / "hambone"
+        file_dir = Path(__file__).parent / "data" / "files"
+        template = file_dir / "homedir"
         homedir = str(t_home)
         monkeypatch.setenv("HOME", homedir)
         monkeypatch.setenv("USER", "hambone")
         monkeypatch.setenv("JUPYTERHUB_BASE_URL", "/nb/")
+        monkeypatch.setenv(
+            "NUBLADO_RUNTIME_MOUNTS_DIR", str(file_dir / "etc" / "nublado")
+        )
+        monkeypatch.setenv(
+            "JUPYTERLAB_CONFIG_DIR", str(file_dir / "jupyterlab")
+        )
         copytree(
             template,
             homedir,
@@ -72,7 +96,7 @@ def _rsp_env(
 
 
 @pytest.fixture
-def git_repo() -> Iterator[Path]:
+def _deprecated_git_repo() -> Iterator[Path]:
     with TemporaryDirectory() as repo_str:
         pwd = Path.cwd()
         repo = Path(repo_str)
@@ -90,11 +114,9 @@ def git_repo() -> Iterator[Path]:
         yield Path(repo)
 
 
-# Things for startup/landing_page.
-
-
+# Things for deprecated landing page
 @pytest.fixture(scope="session")
-def monkeysession() -> Iterator[pytest.MonkeyPatch]:
+def _deprecated_monkeysession() -> Iterator[pytest.MonkeyPatch]:
     """MonkeyPatch, but session-scoped."""
     mpatch = pytest.MonkeyPatch()
     yield mpatch
@@ -102,8 +124,8 @@ def monkeysession() -> Iterator[pytest.MonkeyPatch]:
 
 
 @pytest.fixture(scope="session")
-def _init_container_fake_root(
-    monkeysession: pytest.MonkeyPatch,
+def _deprecated_init_container_fake_root(
+    _deprecated_monkeysession: pytest.MonkeyPatch,
 ) -> Iterator[None]:
     with TemporaryDirectory() as td:
         contents = {
@@ -118,12 +140,14 @@ def _init_container_fake_root(
         home_directory = Path(td) / "home" / "gregorsamsa"
         home_directory.mkdir(parents=True)
 
-        monkeysession.setenv("NUBLADO_HOME", str(home_directory))
-        monkeysession.setenv(
+        _deprecated_monkeysession.setenv("NUBLADO_HOME", str(home_directory))
+        _deprecated_monkeysession.setenv(
             "CST_LANDING_PAGE_SRC_DIR", str(tutorial_directory)
         )
-        monkeysession.setenv("CST_LANDING_PAGE_TGR_DIR", "notebooks/tutorials")
-        monkeysession.setenv(
+        _deprecated_monkeysession.setenv(
+            "CST_LANDING_PAGE_TGR_DIR", "notebooks/tutorials"
+        )
+        _deprecated_monkeysession.setenv(
             "CST_LANDING_PAGE_FILES", "hello.txt", "goodbye.txt"
         )
         yield

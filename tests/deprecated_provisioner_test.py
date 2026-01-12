@@ -6,17 +6,21 @@ from pathlib import Path
 
 import pytest
 
-from lsst.rsp.startup.services.landing_page.exceptions import (
+from lsst.rsp.startup._deprecated.constants import NUBLADO_TOO_OLD
+from lsst.rsp.startup._deprecated.services.landing_page.exceptions import (
     DestinationError,
     DestinationIsDirectoryError,
     PrecheckError,
 )
-from lsst.rsp.startup.services.landing_page.provisioner import Provisioner
+from lsst.rsp.startup._deprecated.services.landing_page.provisioner import (
+    Provisioner,
+)
 
 
-@pytest.mark.usefixtures("_init_container_fake_root")
+@pytest.mark.usefixtures("_deprecated_init_container_fake_root")
 def test_provisioner_basic() -> None:
-    pr = Provisioner.from_env()
+    with pytest.warns(DeprecationWarning, match=NUBLADO_TOO_OLD):
+        pr = Provisioner.from_env()
 
     fnames = [x.name for x in pr._source_files]
     outfiles = [pr._dest_dir / x for x in fnames]
@@ -34,8 +38,8 @@ def test_provisioner_basic() -> None:
         assert not outf.exists()
 
     assert not settings.exists()
-
-    pr.go()
+    with pytest.warns(DeprecationWarning, match=NUBLADO_TOO_OLD):
+        pr.go()
 
     for outf in outfiles:
         assert outf.is_file()
@@ -49,30 +53,39 @@ def test_provisioner_basic() -> None:
     assert s_obj["defaultViewers"]["markdown"] == "Markdown Preview"
 
 
-@pytest.mark.usefixtures("_init_container_fake_root")
+@pytest.mark.usefixtures("_deprecated_init_container_fake_root")
 def test_bad_source(monkeypatch: pytest.MonkeyPatch) -> None:
     srcdir = os.getenv("CST_LANDING_PAGE_SRC_DIR")
     assert srcdir is not None
     monkeypatch.setenv("CST_LANDING_PAGE_SRC_DIR", "/nonexistent")
-    pr = Provisioner.from_env()
+    with pytest.warns(DeprecationWarning, match=NUBLADO_TOO_OLD):
+        pr = Provisioner.from_env()
     with pytest.raises(PrecheckError):
-        pr.go()
+        with pytest.warns(DeprecationWarning, match=NUBLADO_TOO_OLD):
+            pr.go()
     monkeypatch.setenv("CST_LANDING_PAGE_SRC_DIR", srcdir)
     monkeypatch.setenv("CST_LANDING_PAGE_FILES", "nonexistent")
-    pr = Provisioner.from_env()
+    with pytest.warns(DeprecationWarning, match=NUBLADO_TOO_OLD):
+        pr = Provisioner.from_env()
     with pytest.raises(PrecheckError):
-        pr.go()
+        with pytest.warns(DeprecationWarning, match=NUBLADO_TOO_OLD):
+            pr.go()
 
 
+@pytest.mark.usefixtures("_deprecated_init_container_fake_root")
 def test_bad_homedir(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("NUBLADO_HOME", "/nonexistent")
-    pr = Provisioner.from_env()
+    with pytest.warns(DeprecationWarning, match=NUBLADO_TOO_OLD):
+        pr = Provisioner.from_env()
     with pytest.raises(PrecheckError):
-        pr.go()
+        with pytest.warns(DeprecationWarning, match=NUBLADO_TOO_OLD):
+            pr.go()
 
 
+@pytest.mark.usefixtures("_deprecated_init_container_fake_root")
 def test_bad_destination() -> None:
-    pr = Provisioner.from_env()
+    with pytest.warns(DeprecationWarning, match=NUBLADO_TOO_OLD):
+        pr = Provisioner.from_env()
     assert len(pr._source_files) != 0
     source_file = pr._source_files[0]
     destfile = pr._dest_dir / source_file.name
@@ -86,19 +99,22 @@ def test_bad_destination() -> None:
     # Directory
     destfile.mkdir(parents=True, exist_ok=True)
     with pytest.raises(DestinationIsDirectoryError):
-        pr.go()
+        with pytest.warns(DeprecationWarning, match=NUBLADO_TOO_OLD):
+            pr.go()
     destfile.rmdir()
 
     # FIFO
     os.mkfifo(str(destfile), 0o600)
     with pytest.raises(DestinationError):
-        pr.go()
+        with pytest.warns(DeprecationWarning, match=NUBLADO_TOO_OLD):
+            pr.go()
     destfile.unlink()
 
     # Symlink
     destfile.symlink_to(Path("broken_link"))
     assert destfile.is_symlink()
-    pr.go()
+    with pytest.warns(DeprecationWarning, match=NUBLADO_TOO_OLD):
+        pr.go()
     assert destfile.is_file()
 
     # File requiring overwrite.
@@ -107,7 +123,8 @@ def test_bad_destination() -> None:
     source_text = source_file.read_text()
     assert source_text != bad_text
     assert destfile.is_file()
-    pr.go()
+    with pytest.warns(DeprecationWarning, match=NUBLADO_TOO_OLD):
+        pr.go()
     assert destfile.is_file()
     assert destfile.read_text() == source_text
     destfile.unlink()

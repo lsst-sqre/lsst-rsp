@@ -14,12 +14,18 @@ Save-All or Save-And-Quite functionality is to work.
 The tool is expected to be running in the context of the current user,
 as part of an initContainer running after the user home directories
 are provisioned, but before the user lab container begins to start.
+
+This class is deprecated; its functionality was moved to Nublado in the
+Nublado 11.0.0 release.
 """
 
 import json
 import shutil
 from typing import Any, Self
 
+from deprecated import deprecated
+
+from ...constants import NUBLADO_TOO_OLD
 from .exceptions import (
     DestinationError,
     DestinationIsDirectoryError,
@@ -101,6 +107,7 @@ class Provisioner:
                 json.dumps(settings, sort_keys=True, indent=2)
             )
 
+    @deprecated(reason=NUBLADO_TOO_OLD)
     def go(self) -> None:
         """Do the deed."""
         self._precheck()

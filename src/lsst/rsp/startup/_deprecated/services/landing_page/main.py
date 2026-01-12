@@ -1,12 +1,20 @@
-"""Entry point for CST tutorial provisioner."""
+"""Entry point for CST tutorial provisioner.
+
+This entry point is deprecated; its functionality was moved to Nublado in the
+Nublado 11.0.0 release.
+"""
 
 import logging
 
+from deprecated import deprecated
+
+from ...constants import NUBLADO_TOO_OLD
 from .provisioner import Provisioner
 
 __all__ = ["main"]
 
 
+@deprecated(reason=NUBLADO_TOO_OLD)
 def main() -> None:
     """Entry point for provisioner.
 

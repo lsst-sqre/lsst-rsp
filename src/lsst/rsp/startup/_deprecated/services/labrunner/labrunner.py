@@ -1,4 +1,8 @@
-"""RSP Lab launcher."""
+"""RSP Lab launcher.
+
+This class is deprecated; its functionality was moved to Nublado in the
+Nublado 11.0.0 release.
+"""
 
 import asyncio
 import configparser
@@ -18,14 +22,16 @@ from urllib.parse import parse_qsl, urlparse
 
 import structlog
 import yaml
+from deprecated import deprecated
 from rubin.repertoire import DiscoveryClient, RepertoireError
 
-from .... import get_access_token, get_digest
-from ....utils import get_jupyterlab_config_dir, get_runtime_mounts_dir
+from ..... import get_access_token, get_digest
+from .....utils import get_jupyterlab_config_dir, get_runtime_mounts_dir
 from ...constants import (
     APP_NAME,
     ETC_PATH,
     MAX_NUMBER_OUTPUTS,
+    NUBLADO_TOO_OLD,
     PREVIOUS_LOGGING_CHECKSUMS,
 )
 from ...exceptions import RSPErrorCode, RSPStartupError
@@ -45,15 +51,20 @@ class LabRunner:
 
     If that's you, use this for inspiration, but don't expect this to
     work out of the box.
+
+    This class is deprecated; its functionality was moved to Nublado in the
+    Nublado 11.0.0 release.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, broken: bool = False) -> None:
         # We start with a copy of our own environment
         self._env = os.environ.copy()
         self._debug = bool(self._env.get("DEBUG", ""))
         configure_logging(debug=self._debug)
         self._logger = structlog.get_logger(APP_NAME)
-        self._broken = False
+        self._broken = broken
+        # If we started out broken, we should already have the RSP startup
+        # error stuff set in the environment, which we've already loaded.
         for req_env in ("JUPYTERHUB_BASE_URL", "HOME"):
             if req_env not in self._env:
                 exc = RSPStartupError("EBADENV", None, req_env)
@@ -71,6 +82,7 @@ class LabRunner:
         )
         self._discovery = DiscoveryClient(base_url=rep_url)
 
+    @deprecated(reason=NUBLADO_TOO_OLD)
     def go(self) -> None:
         """Start the user lab."""
         # If the user somehow manages to screw up their local environment
@@ -84,10 +96,12 @@ class LabRunner:
         except OSError as exc:
             self._set_abnormal_startup(exc)
 
-        # Clean up stale cache, check for writeability, try to free some
-        # space if necessary.  This stage will manage its own abnormality,
-        # since it tries to take some corrective action.
-        self._tidy_homedir()
+        # If things are not yet broken, clean up stale cache, check for
+        # writeability, try to free some space if necessary.  This stage
+        # will manage its own abnormality, since it tries to take some
+        # corrective action.
+        if not self._broken:
+            self._tidy_homedir()
 
         # If everything seems OK so far, copy files into the user's home
         # space and set up git-lfs.
@@ -108,6 +122,9 @@ class LabRunner:
         and then set the env variables that rsp-jupyter-extensions will use
         to report the error to the user at Lab startup.
         """
+        if self._broken:
+            # We're already broken.  Stick with the prior error.
+            return
         self._broken = True
         if not isinstance(exc, RSPStartupError):
             # This will also catch the EUNKNOWN case

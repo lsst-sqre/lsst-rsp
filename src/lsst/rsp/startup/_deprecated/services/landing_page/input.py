@@ -1,8 +1,16 @@
-"""Convenience class and function for handling provisioner inputs."""
+"""Convenience class and function for handling provisioner inputs.
+
+These items are deprecated; their functionality was moved to Nublado in the
+Nublado 11.0.0 release.
+"""
 
 import os
 from dataclasses import dataclass
 from pathlib import Path
+
+from deprecated import deprecated
+
+from ...constants import NUBLADO_TOO_OLD
 
 
 @dataclass
@@ -15,6 +23,7 @@ class ProvisionerInput:
     debug: bool = False
 
 
+@deprecated(reason=NUBLADO_TOO_OLD)
 def input_from_env() -> ProvisionerInput:
     """Construct input from environment and defaults."""
     debug = bool(os.getenv("DEBUG", ""))

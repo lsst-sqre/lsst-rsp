@@ -1,11 +1,19 @@
-"""CLI launchers for the Lab Runner and the landing page provisioner."""
+"""CLI launchers for the Lab Runner and the landing page provisioner.
+
+These items are deprecated; their functionality was moved to Nublado in the
+Nublado 11.0.0 release.
+"""
 
 import logging
 
+from deprecated import deprecated
+
+from .constants import NUBLADO_TOO_OLD
 from .services.labrunner import LabRunner
 from .services.landing_page.provisioner import Provisioner
 
 
+@deprecated(reason=NUBLADO_TOO_OLD)
 def launch_lab() -> None:
     """Make a LabRunner and call its single public method.  All settings are
     in the environment.
@@ -13,6 +21,7 @@ def launch_lab() -> None:
     LabRunner().go()
 
 
+@deprecated(reason=NUBLADO_TOO_OLD)
 def provision_landing_page() -> None:
     """Entry point for landing page provisioner.
 
