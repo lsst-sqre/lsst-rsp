@@ -1,8 +1,4 @@
-"""Launcher for the user's JupyterLab.
-
-It expects to find a directory named /lab_startup, in which it will have
-an env.json file which will contain
-"""
+"""Launcher for the user's JupyterLab."""
 
 import contextlib
 import errno
@@ -18,7 +14,40 @@ __all__ = ["Launcher", "launch_lab"]
 
 
 class Launcher:
-    """Convenience class to hold Lab launcher."""
+    """Convenience class to hold Lab launcher.
+
+    Notes
+    -----
+    It expects to find a directory named /lab_startup, in which it will have
+    an env.json file which will contain a dict of string to string, where the
+    key is the environment variable name and the value is its value, e.g.
+    { "PATH": "/bin:/usr/bin",
+      "USER": "fbooth" }
+
+    There will also be a file called either args.json or
+    noninteractive.json, depending on whether the Lab container is to
+    be run interactively or noninteractively. This will be a list of
+    strings, where the first string is the command to be run and the
+    following ones are arguments to that command, e.g.
+    [ "jupyterhub-singleuser", "--ip=0.0.0.0", "--port=8888" ]
+
+    These files will have been written into the directory by a startup
+    init container provided by Nublado (v11.0.0+).
+
+    If /lab_startup is not present, or is not a directory, or env.json
+    does not exist, we assume that the underlying cause is that the
+    Nublado controller is too old. The deprecated older startup code
+    will be invoked, and ABNORMAL_STARTUP environment variables will
+    be set to alert the user on Lab launch.
+
+    If env.json or the command file fails to load correctly,
+    ABNORMAL_STARTUP will be used as above, and a default command or
+    environment will be used, although it will not be assumed that the
+    controller is the problem.
+
+    In both cases the idea is to get something in front of the user to
+    explain the problem and suggest remedial action.
+    """
 
     def __init__(self) -> None:
         self._env: dict[str, str] = {}
@@ -41,7 +70,7 @@ class Launcher:
         startup_path = os.getenv("RSP_STARTUP_PATH", "/lab_startup")
         self._startup_path = Path(startup_path)
         self._logger.debug(
-            f"Launcher initialized: HOME={self._home}; "
+            f"Launcher initialized: HOME={self._home};"
             " expecting environment and command files in"
             f"{self._startup_path}"
         )
@@ -209,9 +238,13 @@ class Launcher:
             return
         self._env["ABNORMAL_STARTUP_MESSAGE"] = str(error)
         if isinstance(error, OSError):
-            self._env["ABNORMAL_STARTUP_ERRNO"] = str(error.errno) or "201"
+            eno = error.errno or 201
+            self._env["ABNORMAL_STARTUP_ERRORCODE"] = errno.errorcode.get(
+                eno, f"Unknown error {eno}"
+            )
+            self._env["ABNORMAL_STARTUP_ERRNO"] = str(eno)
             self._env["ABNORMAL_STARTUP_STRERROR"] = errno.errorcode.get(
-                error.errno or 201, "EUNKNOWN"
+                eno, "EUNKNOWN"
             )
             return
         self._env["ABNORMAL_STARTUP_ERRNO"] = "201"
