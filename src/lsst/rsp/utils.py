@@ -114,6 +114,7 @@ def get_pyvo_auth() -> pyvo.auth.authsession.AuthSession | None:
         "obstap": guess_service_url("obstap"),
         "ssotap": guess_service_url("ssotap"),
         "consdbtap": guess_service_url("consdbtap"),
+        "ppdbtap": guess_service_url("ppdbtap"),
         "live": guess_service_url("live"),
         "sia": guess_service_url("sia"),
         "cutout": guess_service_url("cutout"),
