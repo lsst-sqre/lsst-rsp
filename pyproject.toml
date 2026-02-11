@@ -28,8 +28,6 @@ dependencies = [
     "IPython",
     "pyvo",
     "httpx",
-    "rubin-repertoire",  # only for deprecated startup
-    "structlog",  # only for deprecated startup
     "xmltodict"
 ]
 dynamic = ["version"]
@@ -37,10 +35,6 @@ dynamic = ["version"]
 [[project.authors]]
 name = "Association of Universities for Research in Astronomy, Inc. (AURA)"
 email = "sqre-admin@lists.lsst.org"
-
-[project.scripts]
-launch-rubin-jupyterlab = "lsst.rsp.startup:launch_lab"
-provision-landing-page  = "lsst.rsp.startup._deprecated.cli:provision_landing_page"
 
 [project.urls]
 Homepage = "https://rsp.lsst.io/"
