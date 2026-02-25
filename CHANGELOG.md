@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.12.0'></a>
+## 0.12.0 (2026-02-25)
+
+### Backwards-incompatible changes
+
+- Remove the Nublado JupyterLab startup code from this library. Nublado lab startup is now handled by `rubin.nublado.startup`, which is managed and installed from the [Nublado](https://nublado.lsst.io/) repository.
+
 <a id='changelog-0.11.0'></a>
 ## 0.11.0 (2026-01-12)
 
