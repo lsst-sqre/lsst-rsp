@@ -3,10 +3,8 @@
 import warnings
 
 import pyvo
-import xmltodict
 from deprecated import deprecated
 
-from .client import RSPClient
 from .utils import get_pyvo_auth, get_service_url
 
 
@@ -68,22 +66,3 @@ def retrieve_query(query_url: str) -> pyvo.dal.AsyncTAPJob:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=UserWarning)
         return pyvo.dal.AsyncTAPJob(query_url, session=get_pyvo_auth())
-
-
-async def get_query_history(n: int | None = None) -> list[str]:
-    """Retrieve last n query jobref ids.  If n is not specified, or n<1,
-    retrieve all query jobref ids.
-    """
-    client = RSPClient("/api/tap")
-    params = {}
-    if n and n > 0:
-        params = {"last": f"{n}"}
-    full_history_xml = await client.get("async", params=params)
-    history_dict = xmltodict.parse(
-        full_history_xml.text, force_list=("uws:jobref",)
-    )
-    try:
-        joblist = history_dict["uws:jobs"]["uws:jobref"]
-    except KeyError:
-        return []
-    return [job["@id"] for job in joblist if "@id" in job]
