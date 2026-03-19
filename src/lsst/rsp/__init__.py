@@ -19,10 +19,10 @@ from ._exceptions import (
     UnknownInfluxDBError,
     UnknownServiceError,
 )
+from ._history import get_query_history
 from .catalog import (
     get_catalog,
     get_obstap_service,
-    get_query_history,
     get_tap_service,
     retrieve_query,
 )
