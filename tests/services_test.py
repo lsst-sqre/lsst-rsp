@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from safir.testing.data import Data
 
 from lsst.rsp import (
     DiscoveryNotAvailableError,
@@ -13,8 +14,6 @@ from lsst.rsp import (
     UnknownDatasetError,
     UnknownServiceError,
 )
-
-from .support.data import data_path
 
 
 @pytest.mark.usefixtures("token")
@@ -49,14 +48,14 @@ def test_missing_discovery() -> None:
 
 
 @pytest.mark.usefixtures("token")
-def test_invalid_discovery() -> None:
-    invalid_path = data_path("discovery/syntax.json")
+def test_invalid_discovery(data: Data) -> None:
+    invalid_path = data.path("discovery/syntax.json")
     with pytest.raises(InvalidDiscoveryError):
         RSPServices("dp1", discovery_v1_path=invalid_path)
 
 
 @pytest.mark.usefixtures("token")
-def test_empty() -> None:
-    empty_path = data_path("discovery/empty.json")
+def test_empty(data: Data) -> None:
+    empty_path = data.path("discovery/empty.json")
     with pytest.raises(UnknownDatasetError):
         RSPServices("dp1", discovery_v1_path=empty_path)

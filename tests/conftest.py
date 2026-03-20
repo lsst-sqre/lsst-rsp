@@ -3,6 +3,12 @@
 from pathlib import Path
 
 import pytest
+from safir.testing.data import Data
+
+
+@pytest.fixture
+def data() -> Data:
+    return Data(Path(__file__).parent / "data")
 
 
 @pytest.fixture

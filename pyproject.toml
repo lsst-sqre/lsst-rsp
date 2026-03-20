@@ -53,6 +53,7 @@ dev = [
     "pytest-httpx",
     "pytest-sugar",
     "respx",
+    "safir>=14.3",
 ]
 docs = [
     "scriv",
