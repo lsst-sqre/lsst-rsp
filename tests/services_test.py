@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from pyvo.dal import TAPService
+from pyvo.dal import SIA2Service, TAPService
 from requests_mock import Mocker
 from safir.testing.data import Data
 
@@ -62,6 +62,29 @@ def test_get_tap_client(
 
     with pytest.raises(UnknownServiceError):
         efd_services.get_tap_client()
+
+
+def test_get_sia2_client(
+    *, data: Data, discovery_v1_path: Path, token: str, requests_mock: Mocker
+) -> None:
+    dp03_services = RSPServices("dp03", discovery_v1_path=discovery_v1_path)
+    dp1_services = RSPServices("dp1", discovery_v1_path=discovery_v1_path)
+
+    # PyVO immediately makes a request for the capabilities endpoint, which
+    # needs to be mocked out. This can also be used to test whether the token
+    # is correctly sent.
+    url = dp1_services.get_service_url("sia")
+    requests_mock.get(
+        url + "/capabilities",
+        request_headers={"Authorization": f"Bearer {token}"},
+        text=data.read_text("responses/sia-capabilities.xml"),
+        headers={"Content-Type": "text/xml"},
+    )
+    client = dp1_services.get_sia2_client()
+    assert isinstance(client, SIA2Service)
+
+    with pytest.raises(UnknownServiceError):
+        dp03_services.get_sia2_client()
 
 
 @pytest.mark.usefixtures("token")

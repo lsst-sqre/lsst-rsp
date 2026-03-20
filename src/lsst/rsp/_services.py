@@ -6,7 +6,7 @@ from typing import ClassVar
 
 import requests
 from pyvo.auth import AuthSession
-from pyvo.dal import TAPService
+from pyvo.dal import SIA2Service, TAPService
 
 from ._exceptions import (
     DiscoveryNotAvailableError,
@@ -109,6 +109,23 @@ class RSPServices:
         if not url:
             raise UnknownServiceError(service, self._dataset)
         return url
+
+    def get_sia2_client(self) -> SIA2Service:
+        """Get a configured PyVO SIAv2 client for this dataset.
+
+        Returns
+        -------
+        SIA2Service
+            PyVO SIAv2 client configured with an appropriate base URL and
+            authentication credentials.
+
+        Raises
+        ------
+        UnknownServiceError
+            Raised if there is no TAP service for this dataset.
+        """
+        url = self.get_service_url("sia")
+        return SIA2Service(url, session=self._get_pyvo_auth())
 
     def get_tap_client(self) -> TAPService:
         """Get a configured PyVO TAP client for this dataset's TAP service.
