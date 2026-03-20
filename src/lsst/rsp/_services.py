@@ -4,6 +4,10 @@ import json
 from pathlib import Path
 from typing import ClassVar
 
+import requests
+from pyvo.auth import AuthSession
+from pyvo.dal import TAPService
+
 from ._exceptions import (
     DiscoveryNotAvailableError,
     InvalidDiscoveryError,
@@ -68,6 +72,7 @@ class RSPServices:
         self._token = token or get_access_token()
         if not self._token:
             raise TokenNotAvailableError("No access token available")
+        self._pyvo_auth: AuthSession | None = None
 
         # Load discovery information for the specified dataset.
         path = discovery_v1_path or self._DISCOVERY_PATH
@@ -78,7 +83,7 @@ class RSPServices:
         except json.JSONDecodeError as e:
             raise InvalidDiscoveryError(e) from e
         dataset_info = discovery.get("datasets", {}).get(dataset)
-        if not dataset_info:
+        if dataset_info is None:
             raise UnknownDatasetError(dataset)
         self._discovery = dataset_info
 
@@ -104,3 +109,52 @@ class RSPServices:
         if not url:
             raise UnknownServiceError(service, self._dataset)
         return url
+
+    def get_tap_client(self) -> TAPService:
+        """Get a configured PyVO TAP client for this dataset's TAP service.
+
+        Returns
+        -------
+        TAPService
+            PyVO TAP client configured with an appropriate base URL and
+            authentication credentials.
+
+        Raises
+        ------
+        UnknownServiceError
+            Raised if there is no TAP service for this dataset.
+        """
+        url = self.get_service_url("tap")
+        return TAPService(url, session=self._get_pyvo_auth())
+
+    def _get_pyvo_auth(self) -> AuthSession:
+        """Construct a PyVO authentication session.
+
+        This can be passed into PyVO objects to configure subsequent requests
+        to send the Gafaelfawr token as a bearer token.
+
+        Returns
+        -------
+        AuthSession
+            PyVO authentication session.
+        """
+        if self._pyvo_auth:
+            return self._pyvo_auth
+
+        # We haven't built a PyVO auth session yet, so do so.
+        session = requests.Session()
+        session.headers["Authorization"] = f"Bearer {self._token}"
+        auth = AuthSession()
+        auth.credentials.set("lsst-token", session)
+
+        # Configure PyVO to use these credentials for every URL found in the
+        # discovery information for the dataset. This assumes all URLs can be
+        # treated as URL prefixes and it's safe to send credentials to any
+        # URLs below that prefix.
+        for service in self._discovery.get("services", {}).values():
+            if url := service.get("url"):
+                auth.add_security_method_for_url(url, "lsst-token")
+
+        # Return the configured authentication session.
+        self._pyvo_auth = auth
+        return auth

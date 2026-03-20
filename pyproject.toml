@@ -28,7 +28,8 @@ dependencies = [
     "IPython",
     "pyvo",
     "httpx",
-    "xmltodict"
+    "requests",
+    "xmltodict",
 ]
 dynamic = ["version"]
 
@@ -52,6 +53,7 @@ dev = [
     "pytest-cov>=6",
     "pytest-httpx",
     "pytest-sugar",
+    "requests-mock",
     "respx",
     "safir>=14.3",
 ]
