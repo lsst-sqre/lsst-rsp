@@ -25,9 +25,12 @@ class DiscoveryNotAvailableError(Exception):
 class InvalidDiscoveryError(Exception):
     """Discovery information is malformed."""
 
-    def __init__(self, label: str, exc: Exception) -> None:
+    def __init__(self, exc: Exception, label: str | None = None) -> None:
         error = f"{type(exc).__name__}: {exc!s}"
-        msg = f"Invalid discovery information for {label}: {error}"
+        if label:
+            msg = f"Invalid discovery information for {label}: {error}"
+        else:
+            msg = f"Syntax error in discovery information: {error}"
         super().__init__(msg)
 
 

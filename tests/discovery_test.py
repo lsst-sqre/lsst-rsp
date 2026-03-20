@@ -130,6 +130,8 @@ def test_missing_discovery() -> None:
         with pytest.raises(DiscoveryNotAvailableError):
             get_influxdb_credentials("idfdev_efd")
         with pytest.raises(DiscoveryNotAvailableError):
+            list_datasets()
+        with pytest.raises(DiscoveryNotAvailableError):
             list_influxdb_labels()
 
 

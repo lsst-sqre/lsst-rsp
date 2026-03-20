@@ -11,6 +11,12 @@ def discovery_v1_path() -> Path:
 
 
 @pytest.fixture
+def token(monkeypatch: pytest.MonkeyPatch) -> str:
+    monkeypatch.setenv("ACCESS_TOKEN", "some-token")
+    return "some-token"
+
+
+@pytest.fixture
 def _rsp_env(monkeypatch: pytest.MonkeyPatch) -> None:
     file_dir = Path(__file__).parent / "data" / "files"
     monkeypatch.setenv(

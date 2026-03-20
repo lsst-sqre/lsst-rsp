@@ -157,7 +157,7 @@ def get_influxdb_credentials(
             password=info["password"],
         )
     except KeyError as e:
-        raise InvalidDiscoveryError(f"InfluxDB creds for {label}", e) from e
+        raise InvalidDiscoveryError(e, f"InfluxDB creds for {label}") from e
 
 
 def get_influxdb_location(
@@ -201,7 +201,7 @@ def get_influxdb_location(
             schema_registry=influxdb["schema_registry"],
         )
     except KeyError as e:
-        raise InvalidDiscoveryError(f"InfluxDB database {label}", e) from e
+        raise InvalidDiscoveryError(e, f"InfluxDB database {label}") from e
 
 
 def get_service_url(
