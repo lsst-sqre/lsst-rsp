@@ -13,6 +13,7 @@ from lsst.rsp import (
     DiscoveryNotAvailableError,
     InvalidDiscoveryError,
     RSPServices,
+    TokenNotAvailableError,
     UnknownDatasetError,
     UnknownServiceError,
 )
@@ -72,11 +73,24 @@ def test_missing_discovery() -> None:
             RSPServices("dp1")
 
 
+def test_missing_token(discovery_v1_path: Path) -> None:
+    with pytest.raises(TokenNotAvailableError):
+        RSPServices("dp1", discovery_v1_path=discovery_v1_path)
+
+
 @pytest.mark.usefixtures("token")
 def test_invalid_discovery(data: Data) -> None:
     invalid_path = data.path("discovery/syntax.json")
     with pytest.raises(InvalidDiscoveryError):
         RSPServices("dp1", discovery_v1_path=invalid_path)
+
+
+@pytest.mark.usefixtures("token")
+def test_missing_url(data: Data) -> None:
+    invalid_path = data.path("discovery/v1-invalid.json")
+    services = RSPServices("dp02", discovery_v1_path=invalid_path)
+    with pytest.raises(UnknownServiceError):
+        services.get_service_url("cutout")
 
 
 @pytest.mark.usefixtures("token")
