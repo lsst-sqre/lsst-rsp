@@ -51,6 +51,7 @@ dev = [
     "pytest-asyncio>=0.25",
     "pytest-cov>=6",
     "pytest-httpx",
+    "pytest-sugar",
     "respx",
 ]
 docs = [
