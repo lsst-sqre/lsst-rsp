@@ -142,27 +142,12 @@ extend = "ruff-shared.toml"
 "src/lsst/rsp/client.py" = [
     "PLR1714", # No, a set would be a worse way to do this comparison
 ]
-"src/lsst/rsp/startup/_deprecated/models/noninteractive.py" = [
-    "S606",    # Sometimes we really mean os.execvpe(), not subprocess.run()
-]
-"src/lsst/rsp/startup/_deprecated/services/labrunner/labrunner.py" = [
-    "S108",    # We really mean to fall back to literal /tmp
-    "S606",    # Sometimes we really mean os.execvpe(), not subprocess.run()
-]
-"src/lsst/rsp/startup/_launch.py" = [
-    "S108",    # We really mean to fall back to literal /tmp
-    "S606",    # Sometimes we really mean os.execvpe(), not subprocess.run()
-]
 "tests/data/files/**" = [
     "INP001",  # these aren't real Python modules
-]
-"tests/deprecated_startup_test.py" = [
-    "S108",    # We really mean to fall back to literal /tmp
 ]
 
 [tool.ruff.lint.isort]
 known-first-party = ["lsst.rsp", "tests"]
-split-on-trailing-comma = false
 
 [tool.scriv]
 categories = [
