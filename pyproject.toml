@@ -64,7 +64,7 @@ lint = [
 ]
 tox = [
     "tox>=4.24",
-    "tox-uv>=1.25",
+    "tox-uv-bare>=1.32",
 ]
 typing = [
     "mypy>=1.15",
