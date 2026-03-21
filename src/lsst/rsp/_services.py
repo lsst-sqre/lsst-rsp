@@ -2,11 +2,13 @@
 
 import json
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, override
 
 import requests
 from pyvo.auth import AuthSession
 from pyvo.dal import SIA2Service, TAPService
+from requests import PreparedRequest
+from requests.auth import AuthBase
 
 from ._exceptions import (
     DiscoveryNotAvailableError,
@@ -18,6 +20,34 @@ from ._exceptions import (
 from .utils import get_access_token
 
 __all__ = ["RSPServices"]
+
+
+class _RSPAuth(AuthBase):
+    """Python requests authentication class for the RSP.
+
+    Send the Gafaelfawr bearer token only to URLs matching or beneath the list
+    of URLs passed to the constructor of the authentication class.
+
+    Parameters
+    ----------
+    token
+        Gafaelfawr token to send.
+    urls
+        Set of URLs to which authentication should be sent.
+    """
+
+    def __init__(self, token: str, urls: set[str]) -> None:
+        self._token = token
+        self._urls = urls
+        self._prefixes = tuple(u + "/" for u in urls)
+
+    @override
+    def __call__(self, request: PreparedRequest) -> PreparedRequest:
+        if not request.url:
+            return request
+        if request.url in self._urls or request.url.startswith(self._prefixes):
+            request.headers["Authorization"] = f"Bearer {self._token}"
+        return request
 
 
 class RSPServices:
@@ -110,6 +140,23 @@ class RSPServices:
             raise UnknownServiceError(service, self._dataset)
         return url
 
+    def get_session(self) -> requests.Session:
+        """Get a requests session that sends a token only to service URLs.
+
+        The resulting requests session can be used to make any HTTP requests,
+        and will include the bearer token in the ``Authorization`` header only
+        if the request goes to a URL under one of the base service URLs.
+
+        Returns
+        -------
+        requests.Session
+            Requests session configured to send an authentication token if
+            the request is to an RSP service.
+        """
+        session = requests.Session()
+        session.auth = _RSPAuth(self._token, self._get_all_service_urls())
+        return session
+
     def get_sia2_client(self) -> SIA2Service:
         """Get a configured PyVO SIAv2 client for this dataset.
 
@@ -144,6 +191,14 @@ class RSPServices:
         url = self.get_service_url("tap")
         return TAPService(url, session=self._get_pyvo_auth())
 
+    def _get_all_service_urls(self) -> set[str]:
+        """Return all service URLs for the configured dataset."""
+        urls = set()
+        for service in self._discovery.get("services", {}).values():
+            if url := service.get("url"):
+                urls.add(url)
+        return urls
+
     def _get_pyvo_auth(self) -> AuthSession:
         """Construct a PyVO authentication session.
 
@@ -168,9 +223,8 @@ class RSPServices:
         # discovery information for the dataset. This assumes all URLs can be
         # treated as URL prefixes and it's safe to send credentials to any
         # URLs below that prefix.
-        for service in self._discovery.get("services", {}).values():
-            if url := service.get("url"):
-                auth.add_security_method_for_url(url, "lsst-token")
+        for url in self._get_all_service_urls():
+            auth.add_security_method_for_url(url, "lsst-token")
 
         # Return the configured authentication session.
         self._pyvo_auth = auth

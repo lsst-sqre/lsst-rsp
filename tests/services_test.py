@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -41,27 +42,36 @@ def test_get_service_url(discovery_v1_path: Path) -> None:
         RSPServices("unknown", discovery_v1_path=discovery_v1_path)
 
 
-def test_get_tap_client(
-    *, data: Data, discovery_v1_path: Path, token: str, requests_mock: Mocker
+def test_get_session(
+    discovery_v1_path: Path, token: str, requests_mock: Mocker
 ) -> None:
-    dp1_services = RSPServices("dp1", discovery_v1_path=discovery_v1_path)
-    efd_services = RSPServices("efd", discovery_v1_path=discovery_v1_path)
+    services = RSPServices("dp1", discovery_v1_path=discovery_v1_path)
+    session = services.get_session()
 
-    # PyVO immediately makes a request for the capabilities endpoint, which
-    # needs to be mocked out. This can also be used to test whether the token
-    # is correctly sent.
-    url = dp1_services.get_service_url("tap")
+    # Register a mock under one of the URLs for a service and ensure that the
+    # token is correctly sent.
+    url = services.get_service_url("cutout")
     requests_mock.get(
-        url + "/capabilities",
+        url + "/jobs",
         request_headers={"Authorization": f"Bearer {token}"},
-        text=data.read_text("responses/tap-capabilities.xml"),
-        headers={"Content-Type": "text/xml"},
+        text="okay",
     )
-    client = dp1_services.get_tap_client()
-    assert isinstance(client, TAPService)
+    r = session.get(url + "/jobs")
+    assert r.status_code == 200
+    assert r.text == "okay"
 
-    with pytest.raises(UnknownServiceError):
-        efd_services.get_tap_client()
+    def no_token(request: Any) -> bool:
+        return "Authorization" not in request.headers
+
+    # Register a mock under some URL that isn't beneath any of the service
+    # URLs and use that callback to check that the token was not sent. Check
+    # both an unrelated URL and one that starts with a valid URL but isn't
+    # properly nested.
+    for external in ("https://data.example.com/api/other", url + "foo"):
+        requests_mock.get(external, additional_matcher=no_token, text="okay")
+        r = session.get(external)
+        assert r.status_code == 200
+        assert r.text == "okay"
 
 
 def test_get_sia2_client(
@@ -85,6 +95,29 @@ def test_get_sia2_client(
 
     with pytest.raises(UnknownServiceError):
         dp03_services.get_sia2_client()
+
+
+def test_get_tap_client(
+    *, data: Data, discovery_v1_path: Path, token: str, requests_mock: Mocker
+) -> None:
+    dp1_services = RSPServices("dp1", discovery_v1_path=discovery_v1_path)
+    efd_services = RSPServices("efd", discovery_v1_path=discovery_v1_path)
+
+    # PyVO immediately makes a request for the capabilities endpoint, which
+    # needs to be mocked out. This can also be used to test whether the token
+    # is correctly sent.
+    url = dp1_services.get_service_url("tap")
+    requests_mock.get(
+        url + "/capabilities",
+        request_headers={"Authorization": f"Bearer {token}"},
+        text=data.read_text("responses/tap-capabilities.xml"),
+        headers={"Content-Type": "text/xml"},
+    )
+    client = dp1_services.get_tap_client()
+    assert isinstance(client, TAPService)
+
+    with pytest.raises(UnknownServiceError):
+        efd_services.get_tap_client()
 
 
 @pytest.mark.usefixtures("token")
