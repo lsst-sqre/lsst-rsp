@@ -53,7 +53,7 @@ class _RSPAuth(AuthBase):
 class RSPServices:
     """Look up Rubin Science Platform services and construct clients.
 
-    Provides an API to discovery the URLs of services, build clients that send
+    Provides an API to discover the URLs of services, build clients that send
     appropriate authentication credentials to service requests, and build PyVO
     clients for services where appropriate.
 
