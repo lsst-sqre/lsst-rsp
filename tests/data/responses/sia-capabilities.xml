@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<capabilities
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:vod="http://www.ivoa.net/xml/VODataService/v1.1">
+  <capability standardID="ivo://ivoa.net/std/VOSI#capabilities">
+    <interface xsi:type="vod:ParamHTTP" version="1.0">
+      <accessURL use="full">https://data.example.com/api/sia/dp1/capabilities</accessURL>
+    </interface>
+  </capability>
+  <capability standardID="ivo://ivoa.net/std/VOSI#availability">
+    <interface xsi:type="vod:ParamHTTP" version="1.0">
+      <accessURL use="full">https://data.example.com/api/sia/dp1/availability</accessURL>
+    </interface>
+  </capability>
+   <capability standardID="ivo://ivoa.net/std/SIA#query-2.0">
+     <interface xsi:type="vod:ParamHTTP" role="std" version="2.0">
+       <securityMethod standardID="ivo://ivoa.net/sso#BasicAA"/>
+       <securityMethod standardID="ivo://ivoa.net/sso#cookie"/>
+       <securityMethod standardID="ivo://ivoa.net/sso#OAuth"/>
+       <securityMethod standardID="ivo://ivoa.net/sso#saml2.0"/>
+       <securityMethod standardID="ivo://ivoa.net/sso#OpenID"/>
+       <accessURL>https://data.example.com/api/sia/dp1/query</accessURL>
+     </interface>
+   </capability>
+</capabilities>

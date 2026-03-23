@@ -20,6 +20,7 @@ from ._exceptions import (
     UnknownServiceError,
 )
 from ._history import get_query_history
+from ._services import RSPServices
 from .catalog import (
     get_catalog,
     get_obstap_service,
@@ -56,6 +57,7 @@ __all__ = [
     "InfluxDBLocation",
     "InvalidDiscoveryError",
     "RSPClient",
+    "RSPServices",
     "TokenNotAvailableError",
     "UnknownDatasetError",
     "UnknownInfluxDBError",

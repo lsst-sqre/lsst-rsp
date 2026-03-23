@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 import respx
 from httpx import Request, Response
+from safir.testing.data import Data
 
 from lsst.rsp import (
     DiscoveryNotAvailableError,
@@ -24,8 +25,6 @@ from lsst.rsp import (
     list_datasets,
     list_influxdb_labels,
 )
-
-from .support.data import data_path, read_test_json
 
 
 def test_get_service_url(discovery_v1_path: Path) -> None:
@@ -68,17 +67,18 @@ def test_get_influxdb_location(discovery_v1_path: Path) -> None:
 
 
 def test_get_influxdb_credentials(
+    data: Data,
     discovery_v1_path: Path,
     respx_mock: respx.Router,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     discovery = json.loads(discovery_v1_path.read_text())
-    data = discovery["influxdb_databases"]["idfdev_efd"]
-    credentials_url = data["credentials_url"]
+    efd_data = discovery["influxdb_databases"]["idfdev_efd"]
+    credentials_url = efd_data["credentials_url"]
 
     def handler(request: Request) -> Response:
         assert request.headers["Authorization"] == "Bearer some-token"
-        return Response(200, json=read_test_json("discovery/idfdev_efd"))
+        return Response(200, json=data.read_json("discovery/idfdev_efd"))
 
     respx_mock.get(credentials_url).mock(side_effect=handler)
 
@@ -90,7 +90,7 @@ def test_get_influxdb_credentials(
     credentials = get_influxdb_credentials(
         "idfdev_efd", "some-token", discovery_v1_path=discovery_v1_path
     )
-    expected = read_test_json("discovery/idfdev_efd")
+    expected = data.read_json("discovery/idfdev_efd")
     assert credentials.url == expected["url"]
     assert credentials.database == expected["database"]
     assert credentials.schema_registry == expected["schema_registry"]
@@ -130,23 +130,25 @@ def test_missing_discovery() -> None:
         with pytest.raises(DiscoveryNotAvailableError):
             get_influxdb_credentials("idfdev_efd")
         with pytest.raises(DiscoveryNotAvailableError):
+            list_datasets()
+        with pytest.raises(DiscoveryNotAvailableError):
             list_influxdb_labels()
 
 
 def test_invalid_discovery(
-    respx_mock: respx.Router, monkeypatch: pytest.MonkeyPatch
+    data: Data, respx_mock: respx.Router, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    invalid_path = data_path("discovery/v1-invalid.json")
+    invalid_path = data.path("discovery/v1-invalid.json")
     monkeypatch.setenv("ACCESS_TOKEN", "some-token")
 
     def handler(request: Request) -> Response:
         assert request.headers["Authorization"] == "Bearer some-token"
-        credentials = read_test_json("discovery/idfdev_efd-invalid")
+        credentials = data.read_json("discovery/idfdev_efd-invalid")
         return Response(200, json=credentials)
 
     discovery = json.loads(invalid_path.read_text())
-    data = discovery["influxdb_databases"]["idfdev_efd"]
-    credentials_url = data["credentials_url"]
+    efd_data = discovery["influxdb_databases"]["idfdev_efd"]
+    credentials_url = efd_data["credentials_url"]
     respx_mock.get(credentials_url).mock(side_effect=handler)
 
     with pytest.raises(UnknownServiceError):
@@ -157,8 +159,8 @@ def test_invalid_discovery(
         get_influxdb_credentials("idfdev_efd", discovery_v1_path=invalid_path)
 
 
-def test_empty() -> None:
-    empty_path = data_path("discovery/empty.json")
+def test_empty(data: Data) -> None:
+    empty_path = data.path("discovery/empty.json")
     with patch.object(_discovery, "_DISCOVERY_PATH", new=empty_path):
         assert list_influxdb_labels() == []
         with pytest.raises(UnknownDatasetError):

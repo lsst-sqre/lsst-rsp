@@ -3,11 +3,23 @@
 from pathlib import Path
 
 import pytest
+from safir.testing.data import Data
+
+
+@pytest.fixture
+def data() -> Data:
+    return Data(Path(__file__).parent / "data")
 
 
 @pytest.fixture
 def discovery_v1_path() -> Path:
     return Path(__file__).parent / "data" / "discovery" / "v1.json"
+
+
+@pytest.fixture
+def token(monkeypatch: pytest.MonkeyPatch) -> str:
+    monkeypatch.setenv("ACCESS_TOKEN", "some-token")
+    return "some-token"
 
 
 @pytest.fixture

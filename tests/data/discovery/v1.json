@@ -61,6 +61,8 @@
           "url": "https://data.example.com/api/tap"
         }
       }
+    },
+    "efd": {
     }
   },
   "influxdb_databases": {
