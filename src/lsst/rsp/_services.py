@@ -39,7 +39,7 @@ class _RSPAuth(AuthBase):
     def __init__(self, token: str, urls: set[str]) -> None:
         self._token = token
         self._urls = urls
-        self._prefixes = tuple(u + "/" for u in urls)
+        self._prefixes = tuple(u.rstrip("/") + "/" for u in urls)
 
     @override
     def __call__(self, request: PreparedRequest) -> PreparedRequest:
