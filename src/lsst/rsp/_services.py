@@ -169,7 +169,7 @@ class RSPServices:
         Raises
         ------
         UnknownServiceError
-            Raised if there is no TAP service for this dataset.
+            Raised if there is no SIA2 service for this dataset.
         """
         url = self.get_service_url("sia")
         return SIA2Service(url, session=self._get_pyvo_auth())
