@@ -32,12 +32,15 @@ def test_get_service_url(discovery_v1_path: Path) -> None:
     expected = discovery["datasets"]["dp02"]["services"]["cutout"]["url"]
     assert dp02_services.get_service_url("cutout") == expected
 
+    # Unknown service.
     with pytest.raises(UnknownServiceError):
         dp1_services.get_service_url("foo")
 
+    # Known service, but not implemented for the dp03 dataset.
     with pytest.raises(UnknownServiceError):
         dp03_services.get_service_url("sia")
 
+    # Unknown dataset.
     with pytest.raises(UnknownDatasetError):
         RSPServices("unknown", discovery_v1_path=discovery_v1_path)
 
@@ -145,6 +148,9 @@ def test_invalid_discovery(data: Data) -> None:
 def test_missing_url(data: Data) -> None:
     invalid_path = data.path("discovery/v1-invalid.json")
     services = RSPServices("dp02", discovery_v1_path=invalid_path)
+
+    # This discovery information contains an entry for the cutout service with
+    # no URL. This should be treated the same as no entry.
     with pytest.raises(UnknownServiceError):
         services.get_service_url("cutout")
 
