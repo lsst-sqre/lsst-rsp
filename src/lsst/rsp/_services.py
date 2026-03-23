@@ -117,13 +117,19 @@ class RSPServices:
             raise UnknownDatasetError(dataset)
         self._discovery = dataset_info
 
-    def get_service_url(self, service: str) -> str:
+    def get_service_url(
+        self, service: str, *, version: str | None = None
+    ) -> str:
         """Get the API URL for a service.
 
         Parameters
         ----------
         service
             Name of the service.
+        version
+            Optional API version. If given, get the specific base URL of that
+            version of the API instead of the base URL of the service as a
+            whole.
 
         Returns
         -------
@@ -135,7 +141,11 @@ class RSPServices:
         UnknownServiceError
             Raised if this service is not provided for this dataset.
         """
-        url = self._discovery.get("services", {}).get(service, {}).get("url")
+        data = self._discovery.get("services", {}).get(service, {})
+        if version:
+            url = data.get("versions", {}).get(version, {}).get("url")
+        else:
+            url = data.get("url")
         if not url:
             raise UnknownServiceError(service, self._dataset)
         return url
