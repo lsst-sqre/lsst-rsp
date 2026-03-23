@@ -8,7 +8,7 @@ import xmltodict
 from httpx import AsyncClient
 
 from ._discovery import get_service_url, list_datasets
-from ._exceptions import UnknownDatasetError
+from ._exceptions import UnknownDatasetError, UnknownServiceError
 from .utils import get_access_token
 
 
@@ -68,7 +68,7 @@ async def get_query_history(
     for dataset in datasets:
         try:
             url = get_service_url("tap", dataset, **discovery_args)
-        except UnknownDatasetError:
+        except (UnknownDatasetError, UnknownServiceError):
             continue
         r = await client.get(url + "/async", params=params)
         if r.status_code >= 300:
