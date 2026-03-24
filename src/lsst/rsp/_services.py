@@ -192,6 +192,10 @@ class RSPServices:
             the request is to an RSP service.
         """
         session = requests.Session()
+        existing_ua = session.headers.get("User-Agent", "")
+        session.headers["User-Agent"] = (
+            f"lsst-rsp/{_lsst_rsp_version} {existing_ua}".strip()
+        )
         session.auth = _RSPAuth(self._token, self._get_all_service_urls())
         return session
 
