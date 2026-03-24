@@ -32,6 +32,12 @@ def test_get_service_url(discovery_v1_path: Path) -> None:
     expected = discovery["datasets"]["dp02"]["services"]["cutout"]["url"]
     assert dp02_services.get_service_url("cutout") == expected
 
+    # Test requesting a specific version.
+    cutout = discovery["datasets"]["dp02"]["services"]["cutout"]
+    expected = cutout["versions"]["soda-async-1.0"]["url"]
+    seen = dp02_services.get_service_url("cutout", version="soda-async-1.0")
+    assert seen == expected
+
     # Unknown service.
     with pytest.raises(UnknownServiceError):
         dp1_services.get_service_url("foo")
@@ -39,6 +45,10 @@ def test_get_service_url(discovery_v1_path: Path) -> None:
     # Known service, but not implemented for the dp03 dataset.
     with pytest.raises(UnknownServiceError):
         dp03_services.get_service_url("sia")
+
+    # Unknown service version.
+    with pytest.raises(UnknownServiceError):
+        dp02_services.get_service_url("cutout", version="other-version")
 
     # Unknown dataset.
     with pytest.raises(UnknownDatasetError):
