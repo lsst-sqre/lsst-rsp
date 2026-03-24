@@ -87,6 +87,11 @@ def test_get_session(
         assert r.text == "okay"
 
 
+def _has_lsst_rsp_user_agent(request: Any) -> bool:
+    ua = request.headers.get("User-Agent", "")
+    return "lsst-rsp/" in ua and "pyVO/" in ua
+
+
 def test_get_sia2_client(
     *, data: Data, discovery_v1_path: Path, token: str, requests_mock: Mocker
 ) -> None:
@@ -99,6 +104,7 @@ def test_get_sia2_client(
     url = dp1_services.get_service_url("sia")
     requests_mock.get(
         url + "/capabilities",
+        additional_matcher=_has_lsst_rsp_user_agent,
         request_headers={"Authorization": f"Bearer {token}"},
         text=data.read_text("responses/sia-capabilities.xml"),
         headers={"Content-Type": "text/xml"},
@@ -122,6 +128,7 @@ def test_get_tap_client(
     url = dp1_services.get_service_url("tap")
     requests_mock.get(
         url + "/capabilities",
+        additional_matcher=_has_lsst_rsp_user_agent,
         request_headers={"Authorization": f"Bearer {token}"},
         text=data.read_text("responses/tap-capabilities.xml"),
         headers={"Content-Type": "text/xml"},
