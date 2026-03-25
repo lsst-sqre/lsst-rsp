@@ -193,6 +193,8 @@ class RSPServices:
         """
         session = requests.Session()
         existing_ua = session.headers.get("User-Agent", "")
+        if isinstance(existing_ua, bytes):
+            existing_ua = existing_ua.decode()
         session.headers["User-Agent"] = (
             f"lsst-rsp/{_lsst_rsp_version} {existing_ua}".strip()
         )
@@ -280,6 +282,8 @@ class RSPServices:
         session = create_session()
         session.headers["Authorization"] = f"Bearer {self._token}"
         existing_ua = session.headers.get("User-Agent", "")
+        if isinstance(existing_ua, bytes):
+            existing_ua = existing_ua.decode()
         session.headers["User-Agent"] = (
             f"lsst-rsp/{_lsst_rsp_version} {existing_ua}".strip()
         )
