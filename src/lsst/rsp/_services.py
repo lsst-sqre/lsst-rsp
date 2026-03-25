@@ -6,7 +6,8 @@ from typing import ClassVar, override
 
 import requests
 from pyvo.auth import AuthSession
-from pyvo.dal import SIA2Service, TAPService
+from pyvo.dal import AsyncTAPJob, ObsCoreRecord, SIA2Service, TAPService
+from pyvo.dal.adhoc import DatalinkResults
 from requests import PreparedRequest
 from requests.auth import AuthBase
 
@@ -117,6 +118,26 @@ class RSPServices:
             raise UnknownDatasetError(dataset)
         self._discovery = dataset_info
 
+    def get_datalink_result(self, result: ObsCoreRecord) -> DatalinkResults:
+        """Return the DataLink part of an ObsCore record.
+
+        This is the record returned by, for example, an SIAv2 query. The
+        resulting object can be used to follow DataLink pointers.
+
+        Parameters
+        ----------
+        result
+            Result record.
+
+        Returns
+        -------
+        DatalinkResults
+            Results object that can be used to follow DataLink pointers.
+        """
+        return DatalinkResults.from_result_url(
+            result.getdataurl(), session=self._get_pyvo_auth()
+        )
+
     def get_service_url(
         self, service: str, *, version: str | None = None
     ) -> str:
@@ -200,6 +221,27 @@ class RSPServices:
         """
         url = self.get_service_url("tap")
         return TAPService(url, session=self._get_pyvo_auth())
+
+    def get_tap_query(self, url: str) -> AsyncTAPJob:
+        """Retrieve a TAP UWS job with appropriate authentication.
+
+        This can be used to retrieve the results of a previous TAP query if
+        one has the URL to the UWS job in the TAP server.
+
+        Parameters
+        ----------
+        url
+            URL of the TAP job. In PyVO, this is the value of ``job.url``
+            after successfully submitting an async TAP job using the
+            ``submit_job`` method.
+
+        Returns
+        -------
+        AsyncTAPJob
+            Object representing the underlying job, which can be used to
+            retrieve its results or other metadata.
+        """
+        return AsyncTAPJob(url, session=self._get_pyvo_auth())
 
     def _get_all_service_urls(self) -> set[str]:
         """Return all service URLs for the configured dataset."""
