@@ -1,6 +1,7 @@
 """Service discovery and authentication for RSP clients."""
 
 import json
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import ClassVar, override
 
@@ -8,8 +9,14 @@ import requests
 from pyvo.auth import AuthSession
 from pyvo.dal import AsyncTAPJob, ObsCoreRecord, SIA2Service, TAPService
 from pyvo.dal.adhoc import DatalinkResults
+from pyvo.utils.http import create_session
 from requests import PreparedRequest
 from requests.auth import AuthBase
+
+try:
+    _lsst_rsp_version = version("lsst-rsp")
+except PackageNotFoundError:
+    _lsst_rsp_version = "unknown"
 
 from ._exceptions import (
     DiscoveryNotAvailableError,
@@ -185,6 +192,12 @@ class RSPServices:
             the request is to an RSP service.
         """
         session = requests.Session()
+        existing_ua = session.headers.get("User-Agent", "")
+        if isinstance(existing_ua, bytes):
+            existing_ua = existing_ua.decode()
+        session.headers["User-Agent"] = (
+            f"lsst-rsp/{_lsst_rsp_version} {existing_ua}".strip()
+        )
         session.auth = _RSPAuth(self._token, self._get_all_service_urls())
         return session
 
@@ -266,8 +279,14 @@ class RSPServices:
             return self._pyvo_auth
 
         # We haven't built a PyVO auth session yet, so do so.
-        session = requests.Session()
+        session = create_session()
         session.headers["Authorization"] = f"Bearer {self._token}"
+        existing_ua = session.headers.get("User-Agent", "")
+        if isinstance(existing_ua, bytes):
+            existing_ua = existing_ua.decode()
+        session.headers["User-Agent"] = (
+            f"lsst-rsp/{_lsst_rsp_version} {existing_ua}".strip()
+        )
         auth = AuthSession()
         auth.credentials.set("lsst-token", session)
 
