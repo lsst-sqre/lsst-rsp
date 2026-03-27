@@ -6,6 +6,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
+from pyfakefs.fake_filesystem import FakeFilesystem
 from pyvo.dal import SIA2Service, TAPService
 from requests_mock import Mocker
 from safir.testing.data import Data
@@ -21,11 +22,11 @@ from lsst.rsp import (
 
 
 @pytest.mark.usefixtures("token")
-def test_get_service_url(discovery_v1_path: Path) -> None:
-    dp02_services = RSPDiscovery("dp02", discovery_v1_path=discovery_v1_path)
-    dp03_services = RSPDiscovery("dp03", discovery_v1_path=discovery_v1_path)
-    dp1_services = RSPDiscovery("dp1", discovery_v1_path=discovery_v1_path)
-    discovery = json.loads(discovery_v1_path.read_text())
+def test_get_service_url(discovery_path: Path) -> None:
+    dp02_services = RSPDiscovery("dp02")
+    dp03_services = RSPDiscovery("dp03")
+    dp1_services = RSPDiscovery("dp1")
+    discovery = json.loads(discovery_path.read_text())
 
     expected = discovery["datasets"]["dp1"]["services"]["sia"]["url"]
     assert dp1_services.get_service_url("sia") == expected
@@ -52,13 +53,12 @@ def test_get_service_url(discovery_v1_path: Path) -> None:
 
     # Unknown dataset.
     with pytest.raises(UnknownDatasetError):
-        RSPDiscovery("unknown", discovery_v1_path=discovery_v1_path)
+        RSPDiscovery("unknown")
 
 
-def test_get_session(
-    discovery_v1_path: Path, token: str, requests_mock: Mocker
-) -> None:
-    services = RSPDiscovery("dp1", discovery_v1_path=discovery_v1_path)
+@pytest.mark.usefixtures("discovery_path")
+def test_get_session(token: str, requests_mock: Mocker) -> None:
+    services = RSPDiscovery("dp1")
     session = services.get_session()
 
     # Register a mock under one of the URLs for a service and ensure that the
@@ -98,11 +98,10 @@ def _has_pyvo_user_agent(request: Any) -> bool:
     return "lsst-rsp/" in ua and "pyVO/" in ua
 
 
-def test_get_sia_client(
-    *, data: Data, discovery_v1_path: Path, token: str, requests_mock: Mocker
-) -> None:
-    dp03_services = RSPDiscovery("dp03", discovery_v1_path=discovery_v1_path)
-    dp1_services = RSPDiscovery("dp1", discovery_v1_path=discovery_v1_path)
+@pytest.mark.usefixtures("discovery_path")
+def test_get_sia_client(data: Data, token: str, requests_mock: Mocker) -> None:
+    dp03_services = RSPDiscovery("dp03")
+    dp1_services = RSPDiscovery("dp1")
 
     # PyVO immediately makes a request for the capabilities endpoint, which
     # needs to be mocked out. This can also be used to test whether the token
@@ -122,11 +121,10 @@ def test_get_sia_client(
         dp03_services.get_sia_client()
 
 
-def test_get_tap_client(
-    *, data: Data, discovery_v1_path: Path, token: str, requests_mock: Mocker
-) -> None:
-    dp1_services = RSPDiscovery("dp1", discovery_v1_path=discovery_v1_path)
-    efd_services = RSPDiscovery("efd", discovery_v1_path=discovery_v1_path)
+@pytest.mark.usefixtures("discovery_path")
+def test_get_tap_client(data: Data, token: str, requests_mock: Mocker) -> None:
+    dp1_services = RSPDiscovery("dp1")
+    efd_services = RSPDiscovery("efd")
 
     # PyVO immediately makes a request for the capabilities endpoint, which
     # needs to be mocked out. This can also be used to test whether the token
@@ -192,31 +190,32 @@ def test_outside_nublado(data: Data, requests_mock: Mocker) -> None:
     assert r.status_code == 200
 
 
-@pytest.mark.usefixtures("token")
+@pytest.mark.usefixtures("discovery_path", "token")
 def test_missing_discovery() -> None:
-    with pytest.raises(DiscoveryNotAvailableError):
-        RSPDiscovery("dp1", discovery_v1_path=Path("/bogus"))
     with patch.object(RSPDiscovery, "_DISCOVERY_PATH", new=Path("/bogus")):
         with pytest.raises(DiscoveryNotAvailableError):
             RSPDiscovery("dp1")
 
 
-def test_missing_token(discovery_v1_path: Path) -> None:
+@pytest.mark.usefixtures("discovery_path")
+def test_missing_token() -> None:
     with pytest.raises(TokenNotAvailableError):
-        RSPDiscovery("dp1", discovery_v1_path=discovery_v1_path)
+        RSPDiscovery("dp1")
 
 
 @pytest.mark.usefixtures("token")
-def test_invalid_discovery(data: Data) -> None:
-    invalid_path = data.path("discovery/syntax.json")
+def test_invalid_discovery(data: Data, fs: FakeFilesystem) -> None:
+    path = data.path("discovery/syntax.json")
+    fs.add_real_file(path, target_path=RSPDiscovery._DISCOVERY_PATH)
     with pytest.raises(InvalidDiscoveryError):
-        RSPDiscovery("dp1", discovery_v1_path=invalid_path)
+        RSPDiscovery("dp1")
 
 
 @pytest.mark.usefixtures("token")
-def test_missing_url(data: Data) -> None:
-    invalid_path = data.path("discovery/v1-invalid.json")
-    services = RSPDiscovery("dp02", discovery_v1_path=invalid_path)
+def test_missing_url(data: Data, fs: FakeFilesystem) -> None:
+    path = data.path("discovery/v1-invalid.json")
+    fs.add_real_file(path, target_path=RSPDiscovery._DISCOVERY_PATH)
+    services = RSPDiscovery("dp02")
 
     # This discovery information contains an entry for the cutout service with
     # no URL. This should be treated the same as no entry.
@@ -225,7 +224,8 @@ def test_missing_url(data: Data) -> None:
 
 
 @pytest.mark.usefixtures("token")
-def test_empty(data: Data) -> None:
-    empty_path = data.path("discovery/empty.json")
+def test_empty(data: Data, fs: FakeFilesystem) -> None:
+    path = data.path("discovery/empty.json")
+    fs.add_real_file(path, target_path=RSPDiscovery._DISCOVERY_PATH)
     with pytest.raises(UnknownDatasetError):
-        RSPDiscovery("dp1", discovery_v1_path=empty_path)
+        RSPDiscovery("dp1")

@@ -83,11 +83,6 @@ class RSPDiscovery:
         Nublado and pointed to a particular instance of the Rubin Science
         Platform. If given, the URL should be the base URL for the Repertoire
         service.
-    discovery_v1_path
-        Path to discovery information. This is intended for testing and should
-        normally not be provided. The default is the expected path to
-        discovery information within a Nublado notebook. If ``discovery_url``
-        is given, this parameter is ignored.
     token
         Authentication token to use. This parameter can and should be omitted
         when called from inside a Nublado notebook.
@@ -112,7 +107,6 @@ class RSPDiscovery:
         dataset: str,
         *,
         discovery_url: str | None = None,
-        discovery_v1_path: Path | None = None,
         token: str | None = None,
     ) -> None:
         self._dataset = dataset
@@ -125,8 +119,7 @@ class RSPDiscovery:
         if discovery_url:
             discovery = self._fetch_discovery(discovery_url)
         else:
-            path = discovery_v1_path or self._DISCOVERY_PATH
-            discovery = self._read_discovery(path)
+            discovery = self._read_discovery(self._DISCOVERY_PATH)
         dataset_info = discovery.get("datasets", {}).get(dataset)
         if dataset_info is None:
             raise UnknownDatasetError(dataset)

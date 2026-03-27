@@ -48,6 +48,7 @@ build-backend = "setuptools.build_meta"
 [dependency-groups]
 dev = [
     "coverage[toml]",
+    "pyfakefs>=6",
     "pytest>=8.3",
     "pytest-asyncio>=0.25",
     "pytest-cov>=6",
