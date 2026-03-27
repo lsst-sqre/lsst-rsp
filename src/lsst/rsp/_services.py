@@ -15,9 +15,9 @@ from requests.auth import AuthBase
 from requests.exceptions import InvalidJSONError
 
 try:
-    _lsst_rsp_version = version("lsst-rsp")
+    __version__ = version("lsst-rsp")
 except PackageNotFoundError:
-    _lsst_rsp_version = "unknown"
+    __version__ = "unknown"
 
 from ._exceptions import (
     DiscoveryNotAvailableError,
@@ -277,7 +277,7 @@ class RSPDiscovery:
         user_agent = session.headers.get("User-Agent", "")
         if isinstance(user_agent, bytes):
             user_agent = user_agent.decode()
-        return f"lsst-rsp/{_lsst_rsp_version} {user_agent}".strip()
+        return f"lsst-rsp/{__version__} {user_agent}".strip()
 
     def _get_all_service_urls(self) -> set[str]:
         """Return all service URLs for the configured dataset."""
