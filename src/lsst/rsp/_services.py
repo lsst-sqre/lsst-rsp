@@ -1,6 +1,8 @@
 """Service discovery and authentication for RSP clients."""
 
 import json
+import os
+from contextlib import suppress
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, ClassVar, override
@@ -26,7 +28,6 @@ from ._exceptions import (
     UnknownDatasetError,
     UnknownServiceError,
 )
-from .utils import get_access_token
 
 __all__ = ["RSPDiscovery"]
 
@@ -102,6 +103,57 @@ class RSPDiscovery:
     _DISCOVERY_PATH: ClassVar[Path] = Path("/etc/nublado/discovery/v1.json")
     """Path to static service discovery information in a Nublado notebook."""
 
+    _TOKEN_PATH: ClassVar[Path] = Path("/etc/nublado/secrets/token")
+    """Default path to the user's token inside a Nublado notebook."""
+
+    @classmethod
+    def get_token(cls) -> str:
+        """Return the Nublado access token when inside Nublado.
+
+        This is provided as a way to get the Nublado token for callers that
+        want to use a different HTTP library or other Nublado tools that
+        require the token. Where possible, prefer using the regular methods on
+        `RSPDiscovery` that return pre-configured clients or HTTP sessions
+        instead of using this method.
+
+        This method can only be used from a Nublado notebook. To get a token
+        that can be used outside of the Rubin Science Platform, see `the RSP
+        documentation <https://rsp.lsst.io/guides/auth/index.html>`__.
+
+        Returns
+        -------
+        str
+            Token to use to authenticate to RSP services. This token should
+            only be used from inside the Nublado notebook where this method
+            was called.
+
+        Raises
+        ------
+        TokenNotAvailableError
+            Raised if there is no Gafaelfawr token available.
+        """
+        with suppress(FileNotFoundError):
+            return cls._TOKEN_PATH.read_text().strip()
+
+        # Fall back to the runtime mount directory specified in the
+        # environment. Hopefully we can eventually phase this out in favor of
+        # always using /etc/nublado.
+        if runtime_dir := os.environ.get("NUBLADO_RUNTIME_MOUNTS_DIR"):
+            path = Path(runtime_dir) / "secrets" / "token"
+            with suppress(FileNotFoundError):
+                return path.read_text().strip()
+
+        # Try the new environment name with the NUBLADO_ prefix.
+        if token := os.environ.get("NUBLADO_TOKEN"):
+            return token
+
+        # Try the old environment name.
+        if token := os.environ.get("ACCESS_TOKEN"):
+            return token
+
+        # Cannot find the token. Raise an exception.
+        raise TokenNotAvailableError("No access token available")
+
     def __init__(
         self,
         dataset: str,
@@ -110,9 +162,7 @@ class RSPDiscovery:
         token: str | None = None,
     ) -> None:
         self._dataset = dataset
-        self._token = token or get_access_token()
-        if not self._token:
-            raise TokenNotAvailableError("No access token available")
+        self._token = token or self.get_token()
         self._pyvo_auth: AuthSession | None = None
 
         # Get the discovery information for the given dataset.
