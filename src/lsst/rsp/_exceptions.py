@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 __all__ = [
     "DiscoveryNotAvailableError",
     "InvalidDiscoveryError",
@@ -17,8 +15,9 @@ __all__ = [
 class DiscoveryNotAvailableError(Exception):
     """Service discovery information is not available."""
 
-    def __init__(self, path: str | Path) -> None:
-        msg = f"Service discovery information ({path!s}) not found"
+    def __init__(self, exc: Exception) -> None:
+        error = f"{type(exc).__name__}: {exc!s}"
+        msg = f"Cannot get service discovery information: {error}"
         super().__init__(msg)
 
 

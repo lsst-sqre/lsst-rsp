@@ -3,15 +3,16 @@
 import json
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-from typing import ClassVar, override
+from typing import Any, ClassVar, override
 
 import requests
 from pyvo.auth import AuthSession
 from pyvo.dal import AsyncTAPJob, ObsCoreRecord, SIA2Service, TAPService
 from pyvo.dal.adhoc import DatalinkResults
 from pyvo.utils.http import create_session
-from requests import PreparedRequest
+from requests import PreparedRequest, RequestException
 from requests.auth import AuthBase
+from requests.exceptions import InvalidJSONError
 
 try:
     _lsst_rsp_version = version("lsst-rsp")
@@ -76,10 +77,17 @@ class RSPServices:
     dataset
         Label for the dataset that will be accessed. Create a separate
         instance of `RSPServices` for each dataset you wish to use.
+    discovery_url
+        Base URL to discovery services. This should not be provided when
+        running inside Nublado. It allows the class to be used outside of
+        Nublado and pointed to a particular instance of the Rubin Science
+        Platform. If given, the URL should be the base URL for the Repertoire
+        service.
     discovery_v1_path
         Path to discovery information. This is intended for testing and should
         normally not be provided. The default is the expected path to
-        discovery information within a Nublado notebook.
+        discovery information within a Nublado notebook. If ``discovery_url``
+        is given, this parameter is ignored.
     token
         Authentication token to use. This parameter can and should be omitted
         when called from inside a Nublado notebook.
@@ -103,6 +111,7 @@ class RSPServices:
         self,
         dataset: str,
         *,
+        discovery_url: str | None = None,
         discovery_v1_path: Path | None = None,
         token: str | None = None,
     ) -> None:
@@ -112,14 +121,12 @@ class RSPServices:
             raise TokenNotAvailableError("No access token available")
         self._pyvo_auth: AuthSession | None = None
 
-        # Load discovery information for the specified dataset.
-        path = discovery_v1_path or self._DISCOVERY_PATH
-        try:
-            discovery = json.loads(path.read_text())
-        except FileNotFoundError as e:
-            raise DiscoveryNotAvailableError(path) from e
-        except json.JSONDecodeError as e:
-            raise InvalidDiscoveryError(e) from e
+        # Get the discovery information for the given dataset.
+        if discovery_url:
+            discovery = self._fetch_discovery(discovery_url)
+        else:
+            path = discovery_v1_path or self._DISCOVERY_PATH
+            discovery = self._read_discovery(path)
         dataset_info = discovery.get("datasets", {}).get(dataset)
         if dataset_info is None:
             raise UnknownDatasetError(dataset)
@@ -192,12 +199,7 @@ class RSPServices:
             the request is to an RSP service.
         """
         session = requests.Session()
-        existing_ua = session.headers.get("User-Agent", "")
-        if isinstance(existing_ua, bytes):
-            existing_ua = existing_ua.decode()
-        session.headers["User-Agent"] = (
-            f"lsst-rsp/{_lsst_rsp_version} {existing_ua}".strip()
-        )
+        session.headers["User-Agent"] = self._build_user_agent(session)
         session.auth = _RSPAuth(self._token, self._get_all_service_urls())
         return session
 
@@ -256,6 +258,27 @@ class RSPServices:
         """
         return AsyncTAPJob(url, session=self._get_pyvo_auth())
 
+    def _build_user_agent(self, session: requests.Session) -> str:
+        """Construct a ``User-Agent`` header.
+
+        Start from the ``User-Agent`` header in the session, if any, and
+        prepend the version of the lsst.rsp module.
+
+        Parameters
+        ----------
+        session
+            The requests session.
+
+        Returns
+        -------
+        str
+            ``User-Agent`` string to use.
+        """
+        user_agent = session.headers.get("User-Agent", "")
+        if isinstance(user_agent, bytes):
+            user_agent = user_agent.decode()
+        return f"lsst-rsp/{_lsst_rsp_version} {user_agent}".strip()
+
     def _get_all_service_urls(self) -> set[str]:
         """Return all service URLs for the configured dataset."""
         urls = set()
@@ -281,12 +304,7 @@ class RSPServices:
         # We haven't built a PyVO auth session yet, so do so.
         session = create_session()
         session.headers["Authorization"] = f"Bearer {self._token}"
-        existing_ua = session.headers.get("User-Agent", "")
-        if isinstance(existing_ua, bytes):
-            existing_ua = existing_ua.decode()
-        session.headers["User-Agent"] = (
-            f"lsst-rsp/{_lsst_rsp_version} {existing_ua}".strip()
-        )
+        session.headers["User-Agent"] = self._build_user_agent(session)
         auth = AuthSession()
         auth.credentials.set("lsst-token", session)
 
@@ -300,3 +318,47 @@ class RSPServices:
         # Return the configured authentication session.
         self._pyvo_auth = auth
         return auth
+
+    def _fetch_discovery(self, url: str) -> dict[str, Any]:
+        """Fetch discovery information from Repertoire.
+
+        Parameters
+        ----------
+        url
+            Base URL of the Repertoire service.
+
+        Returns
+        -------
+        dict
+            Discovery information as a nested dictionary.
+        """
+        try:
+            with requests.Session() as session:
+                session.headers["User-Agent"] = self._build_user_agent(session)
+                r = session.get(url.rstrip("/") + "/discovery", timeout=10)
+                r.raise_for_status()
+                return r.json()
+        except InvalidJSONError as e:
+            raise InvalidDiscoveryError(e) from e
+        except RequestException as e:
+            raise DiscoveryNotAvailableError(e) from e
+
+    def _read_discovery(self, path: Path) -> dict[str, Any]:
+        """Read discovery information from an on-disk path.
+
+        Parameters
+        ----------
+        path
+            Path to the discovery information.
+
+        Returns
+        -------
+        dict
+            Discovery information as a nested dictionary.
+        """
+        try:
+            return json.loads(path.read_text())
+        except FileNotFoundError as e:
+            raise DiscoveryNotAvailableError(e) from e
+        except json.JSONDecodeError as e:
+            raise InvalidDiscoveryError(e) from e
