@@ -146,6 +146,52 @@ def test_get_tap_client(
         efd_services.get_tap_client()
 
 
+def test_outside_nublado(data: Data, requests_mock: Mocker) -> None:
+    """Test retrieval of service discovery from outside Nublado."""
+    discovery = data.read_json("discovery/full")
+    repertoire_url = "https://data.example.com/repertoire"
+
+    # Mock out the retrieval of the discovery information.
+    requests_mock.get(
+        repertoire_url + "/discovery",
+        additional_matcher=_has_lsst_rsp_user_agent,
+        json=discovery,
+        headers={"Content-Type": "application/json"},
+    )
+
+    # Create the RSPServices object, which retrieves discovery information,
+    # and then check on discovery results.
+    services = RSPServices("dp1", discovery_url=repertoire_url, token="blah")
+    expected = discovery["datasets"]["dp1"]["services"]["cutout"]["url"]
+    assert services.get_service_url("cutout") == expected
+    tap_url = discovery["datasets"]["dp1"]["services"]["tap"]["url"]
+    assert services.get_service_url("tap") == tap_url
+
+    # Check that the provided token is used correctly when constructing
+    # authenticated requests to services.
+    requests_mock.get(
+        tap_url + "/capabilities",
+        additional_matcher=_has_pyvo_user_agent,
+        request_headers={"Authorization": "Bearer blah"},
+        text=data.read_text("responses/tap-capabilities.xml"),
+        headers={"Content-Type": "text/xml"},
+    )
+    client = services.get_tap_client()
+    assert isinstance(client, TAPService)
+
+    # Same check for a standalone session, but the User-Agent is different.
+    session = services.get_session()
+    requests_mock.get(
+        tap_url + "/capabilities",
+        additional_matcher=_has_lsst_rsp_user_agent,
+        request_headers={"Authorization": "Bearer blah"},
+        text=data.read_text("responses/tap-capabilities.xml"),
+        headers={"Content-Type": "text/xml"},
+    )
+    r = session.get(tap_url + "/capabilities")
+    assert r.status_code == 200
+
+
 @pytest.mark.usefixtures("token")
 def test_missing_discovery() -> None:
     with pytest.raises(DiscoveryNotAvailableError):

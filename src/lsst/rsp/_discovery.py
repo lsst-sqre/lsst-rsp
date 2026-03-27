@@ -86,7 +86,7 @@ def _get_discovery(path: Path) -> dict[str, Any]:
     try:
         return json.loads(path.read_text())
     except FileNotFoundError as e:
-        raise DiscoveryNotAvailableError(path) from e
+        raise DiscoveryNotAvailableError(e) from e
 
 
 def get_influxdb_credentials(
