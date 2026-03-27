@@ -28,7 +28,7 @@ from ._exceptions import (
 )
 from .utils import get_access_token
 
-__all__ = ["RSPServices"]
+__all__ = ["RSPDiscovery"]
 
 
 class _RSPAuth(AuthBase):
@@ -59,7 +59,7 @@ class _RSPAuth(AuthBase):
         return request
 
 
-class RSPServices:
+class RSPDiscovery:
     """Look up Rubin Science Platform services and construct clients.
 
     Provides an API to discover the URLs of services, build clients that send
@@ -132,7 +132,7 @@ class RSPServices:
             raise UnknownDatasetError(dataset)
         self._discovery = dataset_info
 
-    def get_datalink_result(self, result: ObsCoreRecord) -> DatalinkResults:
+    def get_datalink_results(self, result: ObsCoreRecord) -> DatalinkResults:
         """Return the DataLink part of an ObsCore record.
 
         This is the record returned by, for example, an SIAv2 query. The
@@ -203,7 +203,7 @@ class RSPServices:
         session.auth = _RSPAuth(self._token, self._get_all_service_urls())
         return session
 
-    def get_sia2_client(self) -> SIA2Service:
+    def get_sia_client(self) -> SIA2Service:
         """Get a configured PyVO SIAv2 client for this dataset.
 
         Returns
@@ -237,7 +237,7 @@ class RSPServices:
         url = self.get_service_url("tap")
         return TAPService(url, session=self._get_pyvo_auth())
 
-    def get_tap_query(self, url: str) -> AsyncTAPJob:
+    def get_tap_job(self, url: str) -> AsyncTAPJob:
         """Retrieve a TAP UWS job with appropriate authentication.
 
         This can be used to retrieve the results of a previous TAP query if

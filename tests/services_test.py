@@ -1,4 +1,4 @@
-"""Tests for the `~lsst.rsp.RSPService` class."""
+"""Tests for the `~lsst.rsp.RSPDiscovery` class."""
 
 import json
 from pathlib import Path
@@ -13,7 +13,7 @@ from safir.testing.data import Data
 from lsst.rsp import (
     DiscoveryNotAvailableError,
     InvalidDiscoveryError,
-    RSPServices,
+    RSPDiscovery,
     TokenNotAvailableError,
     UnknownDatasetError,
     UnknownServiceError,
@@ -22,9 +22,9 @@ from lsst.rsp import (
 
 @pytest.mark.usefixtures("token")
 def test_get_service_url(discovery_v1_path: Path) -> None:
-    dp02_services = RSPServices("dp02", discovery_v1_path=discovery_v1_path)
-    dp03_services = RSPServices("dp03", discovery_v1_path=discovery_v1_path)
-    dp1_services = RSPServices("dp1", discovery_v1_path=discovery_v1_path)
+    dp02_services = RSPDiscovery("dp02", discovery_v1_path=discovery_v1_path)
+    dp03_services = RSPDiscovery("dp03", discovery_v1_path=discovery_v1_path)
+    dp1_services = RSPDiscovery("dp1", discovery_v1_path=discovery_v1_path)
     discovery = json.loads(discovery_v1_path.read_text())
 
     expected = discovery["datasets"]["dp1"]["services"]["sia"]["url"]
@@ -52,13 +52,13 @@ def test_get_service_url(discovery_v1_path: Path) -> None:
 
     # Unknown dataset.
     with pytest.raises(UnknownDatasetError):
-        RSPServices("unknown", discovery_v1_path=discovery_v1_path)
+        RSPDiscovery("unknown", discovery_v1_path=discovery_v1_path)
 
 
 def test_get_session(
     discovery_v1_path: Path, token: str, requests_mock: Mocker
 ) -> None:
-    services = RSPServices("dp1", discovery_v1_path=discovery_v1_path)
+    services = RSPDiscovery("dp1", discovery_v1_path=discovery_v1_path)
     session = services.get_session()
 
     # Register a mock under one of the URLs for a service and ensure that the
@@ -98,11 +98,11 @@ def _has_pyvo_user_agent(request: Any) -> bool:
     return "lsst-rsp/" in ua and "pyVO/" in ua
 
 
-def test_get_sia2_client(
+def test_get_sia_client(
     *, data: Data, discovery_v1_path: Path, token: str, requests_mock: Mocker
 ) -> None:
-    dp03_services = RSPServices("dp03", discovery_v1_path=discovery_v1_path)
-    dp1_services = RSPServices("dp1", discovery_v1_path=discovery_v1_path)
+    dp03_services = RSPDiscovery("dp03", discovery_v1_path=discovery_v1_path)
+    dp1_services = RSPDiscovery("dp1", discovery_v1_path=discovery_v1_path)
 
     # PyVO immediately makes a request for the capabilities endpoint, which
     # needs to be mocked out. This can also be used to test whether the token
@@ -115,18 +115,18 @@ def test_get_sia2_client(
         text=data.read_text("responses/sia-capabilities.xml"),
         headers={"Content-Type": "text/xml"},
     )
-    client = dp1_services.get_sia2_client()
+    client = dp1_services.get_sia_client()
     assert isinstance(client, SIA2Service)
 
     with pytest.raises(UnknownServiceError):
-        dp03_services.get_sia2_client()
+        dp03_services.get_sia_client()
 
 
 def test_get_tap_client(
     *, data: Data, discovery_v1_path: Path, token: str, requests_mock: Mocker
 ) -> None:
-    dp1_services = RSPServices("dp1", discovery_v1_path=discovery_v1_path)
-    efd_services = RSPServices("efd", discovery_v1_path=discovery_v1_path)
+    dp1_services = RSPDiscovery("dp1", discovery_v1_path=discovery_v1_path)
+    efd_services = RSPDiscovery("efd", discovery_v1_path=discovery_v1_path)
 
     # PyVO immediately makes a request for the capabilities endpoint, which
     # needs to be mocked out. This can also be used to test whether the token
@@ -159,9 +159,9 @@ def test_outside_nublado(data: Data, requests_mock: Mocker) -> None:
         headers={"Content-Type": "application/json"},
     )
 
-    # Create the RSPServices object, which retrieves discovery information,
+    # Create the RSPDiscovery object, which retrieves discovery information,
     # and then check on discovery results.
-    services = RSPServices("dp1", discovery_url=repertoire_url, token="blah")
+    services = RSPDiscovery("dp1", discovery_url=repertoire_url, token="blah")
     expected = discovery["datasets"]["dp1"]["services"]["cutout"]["url"]
     assert services.get_service_url("cutout") == expected
     tap_url = discovery["datasets"]["dp1"]["services"]["tap"]["url"]
@@ -195,28 +195,28 @@ def test_outside_nublado(data: Data, requests_mock: Mocker) -> None:
 @pytest.mark.usefixtures("token")
 def test_missing_discovery() -> None:
     with pytest.raises(DiscoveryNotAvailableError):
-        RSPServices("dp1", discovery_v1_path=Path("/bogus"))
-    with patch.object(RSPServices, "_DISCOVERY_PATH", new=Path("/bogus")):
+        RSPDiscovery("dp1", discovery_v1_path=Path("/bogus"))
+    with patch.object(RSPDiscovery, "_DISCOVERY_PATH", new=Path("/bogus")):
         with pytest.raises(DiscoveryNotAvailableError):
-            RSPServices("dp1")
+            RSPDiscovery("dp1")
 
 
 def test_missing_token(discovery_v1_path: Path) -> None:
     with pytest.raises(TokenNotAvailableError):
-        RSPServices("dp1", discovery_v1_path=discovery_v1_path)
+        RSPDiscovery("dp1", discovery_v1_path=discovery_v1_path)
 
 
 @pytest.mark.usefixtures("token")
 def test_invalid_discovery(data: Data) -> None:
     invalid_path = data.path("discovery/syntax.json")
     with pytest.raises(InvalidDiscoveryError):
-        RSPServices("dp1", discovery_v1_path=invalid_path)
+        RSPDiscovery("dp1", discovery_v1_path=invalid_path)
 
 
 @pytest.mark.usefixtures("token")
 def test_missing_url(data: Data) -> None:
     invalid_path = data.path("discovery/v1-invalid.json")
-    services = RSPServices("dp02", discovery_v1_path=invalid_path)
+    services = RSPDiscovery("dp02", discovery_v1_path=invalid_path)
 
     # This discovery information contains an entry for the cutout service with
     # no URL. This should be treated the same as no entry.
@@ -228,4 +228,4 @@ def test_missing_url(data: Data) -> None:
 def test_empty(data: Data) -> None:
     empty_path = data.path("discovery/empty.json")
     with pytest.raises(UnknownDatasetError):
-        RSPServices("dp1", discovery_v1_path=empty_path)
+        RSPDiscovery("dp1", discovery_v1_path=empty_path)
