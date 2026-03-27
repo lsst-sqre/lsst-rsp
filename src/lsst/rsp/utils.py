@@ -1,7 +1,6 @@
 """Utility functions for LSST JupyterLab notebook environment."""
 
 import os
-from contextlib import suppress
 from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin
@@ -9,6 +8,9 @@ from urllib.parse import urljoin
 import pyvo
 import requests
 from deprecated import deprecated
+
+from ._exceptions import TokenNotAvailableError
+from ._services import RSPDiscovery
 
 
 def format_bytes(n: int) -> str:
@@ -186,17 +188,13 @@ def get_access_token(
     environment (any).  Prefer the mounted version since it can be updated,
     while the environment variable stays at whatever it was when the process
     was started.  Return the empty string if the token cannot be determined.
+
+    Use `RSPDiscovery.get_token` instead. This function will be deprecated
+    once tutorial notebooks are updated.
     """
     if tokenfile:
         return Path(tokenfile).read_text().strip()
-    base_dir = get_runtime_mounts_dir()
-    for candidate in (
-        base_dir / "secrets" / "token",
-        base_dir / "environment" / "ACCESS_TOKEN",
-    ):
-        with suppress(FileNotFoundError):
-            return candidate.read_text().strip()
-
-    # If we got here, we couldn't find a file. Return the environment variable
-    # if set, otherwise the empty string.
-    return os.environ.get("ACCESS_TOKEN", "")
+    try:
+        return RSPDiscovery.get_token()
+    except TokenNotAvailableError:
+        return ""

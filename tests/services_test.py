@@ -122,7 +122,15 @@ def test_get_sia_client(data: Data, token: str, requests_mock: Mocker) -> None:
 
 
 @pytest.mark.usefixtures("discovery_path")
-def test_get_tap_client(data: Data, token: str, requests_mock: Mocker) -> None:
+def test_get_tap_client(
+    data: Data, fs: FakeFilesystem, requests_mock: Mocker
+) -> None:
+    # Rather than using an environment variable for the token, write a token
+    # to the expected default path and check that it's read from there.
+    token = "other-token"
+    fs.create_file("/etc/nublado/secrets/token", contents=token + "\n")
+
+    # Create the discovery objects, which should read that token.
     dp1_services = RSPDiscovery("dp1")
     efd_services = RSPDiscovery("efd")
 
@@ -201,6 +209,24 @@ def test_missing_discovery() -> None:
 def test_missing_token() -> None:
     with pytest.raises(TokenNotAvailableError):
         RSPDiscovery("dp1")
+
+
+@pytest.mark.usefixtures("discovery_path")
+def test_runtime_token(
+    fs: FakeFilesystem, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test getting the token relative to the runtime mounts directory."""
+    runtime_path = Path("/runtime")
+    token_path = runtime_path / "secrets" / "token"
+    fs.create_file(token_path, contents="a-token")
+    monkeypatch.setenv("NUBLADO_RUNTIME_MOUNTS_DIR", str(runtime_path))
+
+    assert RSPDiscovery.get_token() == "a-token"
+
+
+def test_old_token_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ACCESS_TOKEN", "env-token")
+    assert RSPDiscovery.get_token() == "env-token"
 
 
 @pytest.mark.usefixtures("token")

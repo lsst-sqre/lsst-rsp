@@ -31,7 +31,7 @@ def discovery_v1_path() -> Path:
 
 @pytest.fixture
 def token(monkeypatch: pytest.MonkeyPatch) -> str:
-    monkeypatch.setenv("ACCESS_TOKEN", "some-token")
+    monkeypatch.setenv("NUBLADO_TOKEN", "some-token")
     return "some-token"
 
 
