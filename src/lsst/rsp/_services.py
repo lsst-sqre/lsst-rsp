@@ -3,7 +3,6 @@
 import json
 import os
 from contextlib import suppress
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, ClassVar, override
 
@@ -16,11 +15,6 @@ from requests import PreparedRequest, RequestException
 from requests.auth import AuthBase
 from requests.exceptions import InvalidJSONError
 
-try:
-    __version__ = version("lsst-rsp")
-except PackageNotFoundError:
-    __version__ = "unknown"
-
 from ._exceptions import (
     DiscoveryNotAvailableError,
     InvalidDiscoveryError,
@@ -28,6 +22,7 @@ from ._exceptions import (
     UnknownDatasetError,
     UnknownServiceError,
 )
+from ._version import __version__
 
 __all__ = ["RSPDiscovery"]
 
