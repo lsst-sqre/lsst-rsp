@@ -56,6 +56,13 @@ def test_get_service_url(discovery_path: Path) -> None:
         RSPDiscovery("unknown")
 
 
+@pytest.mark.usefixtures("token")
+def test_list_datasets(discovery_path: Path) -> None:
+    discovery = json.loads(discovery_path.read_text())
+    expected = list(discovery["datasets"].keys())
+    assert RSPDiscovery.list_datasets() == expected
+
+
 @pytest.mark.usefixtures("discovery_path")
 def test_get_session(token: str, requests_mock: Mocker) -> None:
     services = RSPDiscovery("dp1")
@@ -164,6 +171,10 @@ def test_outside_nublado(data: Data, requests_mock: Mocker) -> None:
         json=discovery,
         headers={"Content-Type": "application/json"},
     )
+
+    # Check listing of datasets.
+    datasets = list(discovery["datasets"].keys())
+    assert RSPDiscovery.list_datasets(discovery_url=repertoire_url) == datasets
 
     # Create the RSPDiscovery object, which retrieves discovery information,
     # and then check on discovery results.
