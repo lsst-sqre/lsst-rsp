@@ -149,6 +149,40 @@ class RSPDiscovery:
         # Cannot find the token. Raise an exception.
         raise TokenNotAvailableError("No access token available")
 
+    @classmethod
+    def list_datasets(cls, *, discovery_url: str | None = None) -> list[str]:
+        """List the available datasets.
+
+        These will be the valid arguments for the ``dataset`` parameter to the
+        `RESPDiscovery` constructor.
+
+        Parameters
+        ----------
+        discovery_url
+            Base URL to discovery services. This should not be provided when
+            running inside Nublado. It allows the class to be used outside of
+            Nublado and pointed to a particular instance of the Rubin Science
+            Platform. If given, the URL should be the base URL for the
+            Repertoire service.
+
+        Returns
+        -------
+        list of str
+            List of valid dataset labels.
+
+        Raises
+        ------
+        DiscoveryNotAvailableError
+            Raised if no service discovery information is available.
+        InvalidDiscoveryError
+            Raised if the discovery information has an invalid syntax.
+        """
+        if discovery_url:
+            discovery = cls._fetch_discovery(discovery_url)
+        else:
+            discovery = cls._read_discovery(cls._DISCOVERY_PATH)
+        return list(discovery.get("datasets", {}).keys())
+
     def __init__(
         self,
         dataset: str,
@@ -296,7 +330,8 @@ class RSPDiscovery:
         """
         return AsyncTAPJob(url, session=self._get_pyvo_auth())
 
-    def _build_user_agent(self, session: requests.Session) -> str:
+    @staticmethod
+    def _build_user_agent(session: requests.Session) -> str:
         """Construct a ``User-Agent`` header.
 
         Start from the ``User-Agent`` header in the session, if any, and
@@ -357,7 +392,8 @@ class RSPDiscovery:
         self._pyvo_auth = auth
         return auth
 
-    def _fetch_discovery(self, url: str) -> dict[str, Any]:
+    @classmethod
+    def _fetch_discovery(cls, url: str) -> dict[str, Any]:
         """Fetch discovery information from Repertoire.
 
         Parameters
@@ -372,7 +408,7 @@ class RSPDiscovery:
         """
         try:
             with requests.Session() as session:
-                session.headers["User-Agent"] = self._build_user_agent(session)
+                session.headers["User-Agent"] = cls._build_user_agent(session)
                 r = session.get(url.rstrip("/") + "/discovery", timeout=10)
                 r.raise_for_status()
                 return r.json()
@@ -381,7 +417,8 @@ class RSPDiscovery:
         except RequestException as e:
             raise DiscoveryNotAvailableError(e) from e
 
-    def _read_discovery(self, path: Path) -> dict[str, Any]:
+    @staticmethod
+    def _read_discovery(path: Path) -> dict[str, Any]:
         """Read discovery information from an on-disk path.
 
         Parameters
