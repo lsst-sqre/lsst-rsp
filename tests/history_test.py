@@ -1,33 +1,30 @@
 """Test the RSPClient."""
 
-from pathlib import Path
-
 import pytest
 from pytest_httpx import HTTPXMock
+from safir.testing.data import Data
 
 from lsst.rsp import get_query_history
 
 
-@pytest.mark.usefixtures("_rsp_env")
+@pytest.mark.usefixtures("discovery_path")
 @pytest.mark.asyncio
 async def test_get_full_query_history(
-    httpx_mock: HTTPXMock, discovery_v1_path: Path
+    data: Data, httpx_mock: HTTPXMock, token: str
 ) -> None:
     """Ensure that ``get_query_history`` works."""
-    data_dir = Path(__file__).parent / "data" / "responses"
     httpx_mock.add_response(
         url="https://data.example.com/api/tap/async",
-        match_headers={"Authorization": "Bearer gf-dummytoken"},
-        text=(data_dir / "resp-tap.xml").read_text(),
+        match_headers={"Authorization": f"Bearer {token}"},
+        text=data.read_text("responses/resp-tap.xml"),
         is_reusable=True,
     )
     httpx_mock.add_response(
         url="https://data.example.com/api/ssotap/async",
-        match_headers={"Authorization": "Bearer gf-dummytoken"},
-        text=(data_dir / "resp-ssotap.xml").read_text(),
+        match_headers={"Authorization": f"Bearer {token}"},
+        text=data.read_text("responses/resp-ssotap.xml"),
     )
-    jobs = await get_query_history(discovery_v1_path=discovery_v1_path)
-    assert jobs == [
+    assert await get_query_history() == [
         "dp03:sw1qsdt9sumffw96",
         "dp1:zka3udcur0haunx2",
         "dp02:zka3udcur0haunx2",
@@ -87,10 +84,10 @@ async def test_get_full_query_history(
     # the mock, so we know the request matched both the URL and the headers.
 
 
-@pytest.mark.usefixtures("_rsp_env")
+@pytest.mark.usefixtures("discovery_path")
 @pytest.mark.asyncio
 async def test_get_partial_query_history(
-    httpx_mock: HTTPXMock, discovery_v1_path: Path
+    data: Data, httpx_mock: HTTPXMock, token: str
 ) -> None:
     """Ensure that ``get_query_history`` works with a limit.
 
@@ -98,23 +95,19 @@ async def test_get_partial_query_history(
     two lists, each with five responses, and that we have at least one from
     each list.
     """
-    data_dir = Path(__file__).parent / "data" / "responses"
     httpx_mock.add_response(
         url="https://data.example.com/api/tap/async?last=5",
-        match_headers={"Authorization": "Bearer gf-dummytoken"},
-        text=(data_dir / "resp-tap-5.xml").read_text(),
+        match_headers={"Authorization": f"Bearer {token}"},
+        text=data.read_text("responses/resp-tap-5.xml"),
         is_reusable=True,
     )
     httpx_mock.add_response(
         url="https://data.example.com/api/ssotap/async?last=5",
-        match_headers={"Authorization": "Bearer gf-dummytoken"},
-        text=(data_dir / "resp-ssotap-5.xml").read_text(),
+        match_headers={"Authorization": f"Bearer {token}"},
+        text=data.read_text("responses/resp-ssotap-5.xml"),
     )
 
-    jobs = await get_query_history(
-        limit=5, discovery_v1_path=discovery_v1_path
-    )
-    assert jobs == [
+    assert await get_query_history(limit=5) == [
         "dp03:sw1qsdt9sumffw96",
         "dp1:zka3udcur0haunx2",
         "dp02:zka3udcur0haunx2",
@@ -123,53 +116,48 @@ async def test_get_partial_query_history(
     ]
 
 
-@pytest.mark.usefixtures("_rsp_env")
+@pytest.mark.usefixtures("discovery_path")
 @pytest.mark.asyncio
 async def test_short_responses(
-    httpx_mock: HTTPXMock, discovery_v1_path: Path
+    data: Data, httpx_mock: HTTPXMock, token: str
 ) -> None:
     """Ensure that ``get_query_history`` works with short data.
 
     Given our test data, note that we are pulling only two responses from two
     lists, even though we're asking for five.
     """
-    data_dir = Path(__file__).parent / "data" / "responses"
     httpx_mock.add_response(
         url="https://data.example.com/api/tap/async?last=5",
-        match_headers={"Authorization": "Bearer gf-dummytoken"},
-        text=(data_dir / "resp-tap-0.xml").read_text(),
+        match_headers={"Authorization": f"Bearer {token}"},
+        text=data.read_text("responses/resp-tap-0.xml"),
         is_reusable=True,
     )
     httpx_mock.add_response(
         url="https://data.example.com/api/ssotap/async?last=5",
-        match_headers={"Authorization": "Bearer gf-dummytoken"},
-        text=(data_dir / "resp-ssotap-2.xml").read_text(),
+        match_headers={"Authorization": f"Bearer {token}"},
+        text=data.read_text("responses/resp-ssotap-2.xml"),
     )
 
-    jobs = await get_query_history(
-        limit=5, discovery_v1_path=discovery_v1_path
-    )
-    assert jobs == [
+    assert await get_query_history(limit=5) == [
         "dp03:sw1qsdt9sumffw96",
         "dp03:x6vqdjyzt4mlhvom",
     ]
 
 
-@pytest.mark.usefixtures("_rsp_env")
+@pytest.mark.usefixtures("discovery_path")
 @pytest.mark.asyncio
 async def test_error_responses(
-    httpx_mock: HTTPXMock, discovery_v1_path: Path
+    data: Data, httpx_mock: HTTPXMock, token: str
 ) -> None:
     """Ensure that ``get_query_history`` works with a broken TAP server.
 
     We will get all five results from ``dp02`` and ``dp1``, because ``dp03``
     will give us a 500 status code.
     """
-    data_dir = Path(__file__).parent / "data" / "responses"
     httpx_mock.add_response(
         url="https://data.example.com/api/tap/async?last=10",
-        match_headers={"Authorization": "Bearer gf-dummytoken"},
-        text=(data_dir / "resp-tap-5.xml").read_text(),
+        match_headers={"Authorization": f"Bearer {token}"},
+        text=data.read_text("responses/resp-tap-5.xml"),
         is_reusable=True,
     )
     httpx_mock.add_response(
@@ -177,10 +165,7 @@ async def test_error_responses(
         status_code=500,
     )
 
-    jobs = await get_query_history(
-        limit=10, discovery_v1_path=discovery_v1_path
-    )
-    assert jobs == [
+    assert await get_query_history(limit=10) == [
         "dp1:zka3udcur0haunx2",
         "dp02:zka3udcur0haunx2",
         "dp1:l34ghit5y6cyebqt",
@@ -194,11 +179,9 @@ async def test_error_responses(
     ]
 
 
-@pytest.mark.usefixtures("_rsp_env")
+@pytest.mark.usefixtures("discovery_path", "token")
 @pytest.mark.asyncio
-async def test_all_error_responses(
-    httpx_mock: HTTPXMock, discovery_v1_path: Path
-) -> None:
+async def test_all_error_responses(httpx_mock: HTTPXMock) -> None:
     """Ensure that ``get_query_history`` works with all TAP servers broken.
 
     We will get an empty list, because both servers will give us a 500 status
@@ -214,7 +197,4 @@ async def test_all_error_responses(
         status_code=500,
     )
 
-    jobs = await get_query_history(
-        limit=5, discovery_v1_path=discovery_v1_path
-    )
-    assert jobs == []
+    assert await get_query_history(limit=5) == []
