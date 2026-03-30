@@ -1,7 +1,5 @@
 """Collection of utilities for Rubin Science Platform notebooks."""
 
-from importlib.metadata import PackageNotFoundError, version
-
 from ._discovery import (
     InfluxDBCredentials,
     InfluxDBLocation,
@@ -21,6 +19,7 @@ from ._exceptions import (
 )
 from ._history import get_query_history
 from ._services import RSPDiscovery
+from ._version import __version__
 from .catalog import (
     get_catalog,
     get_obstap_service,
@@ -38,16 +37,6 @@ from .utils import (
     get_node,
     get_pod,
 )
-
-__version__: str
-"""The application version string of (PEP 440 / SemVer compatible)."""
-
-try:
-    __version__ = version(__name__)
-except PackageNotFoundError:
-    # package is not installed
-    __version__ = "0.0.0"
-
 
 __all__ = [
     "DatasetNotSupportedError",
