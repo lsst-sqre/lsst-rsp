@@ -1,7 +1,6 @@
 """Utility functions to get clients for TAP catalog search."""
 
 import logging
-from pathlib import Path
 from typing import Any
 
 import xmltodict
@@ -13,10 +12,7 @@ from .utils import get_access_token
 
 
 async def get_query_history(
-    limit: int | None = None,
-    *,
-    discovery_v1_path: Path | None = None,
-    token: str | None = None,
+    limit: int | None = None, *, token: str | None = None
 ) -> list[str]:
     """Retrieve the UWS IDs of the user's most recent TAP queries.
 
@@ -25,10 +21,6 @@ async def get_query_history(
     limit
         Maximum number of query IDs to return.  If limit is not specified
         or limit<1, return all query IDs.
-    discovery_v1_path
-        Path to discovery information. This is intended for testing and should
-        normally not be provided. The default is the expected path to
-        discovery information within a Nublado notebook.
     token
         Authentication token. If not given, the authentication token will be
         obtained from the Nublado environment.
@@ -59,15 +51,14 @@ async def get_query_history(
     )
 
     # Get the list of available datasets.
-    discovery_args = {"discovery_v1_path": discovery_v1_path}
-    datasets = list_datasets(**discovery_args)
+    datasets = list_datasets()
 
     # For each dataset, retrieve the list of jobs.
     params = {"last": str(limit)} if limit and limit > 0 else {}
     jobs: list[tuple[str, dict[str, Any]]] = []
     for dataset in datasets:
         try:
-            url = get_service_url("tap", dataset, **discovery_args)
+            url = get_service_url("tap", dataset)
         except (UnknownDatasetError, UnknownServiceError):
             continue
         r = await client.get(url + "/async", params=params)
