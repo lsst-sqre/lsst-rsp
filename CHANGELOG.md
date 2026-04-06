@@ -6,6 +6,23 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.13.0'></a>
+## 0.13.0 (2026-04-06)
+
+### Backwards-incompatible changes
+
+- Drop the `discovery_v1_path` argument from `get_query_history`. The test suite now uses pyfakefs to mock the file system and doesn't need this escape hatch.
+
+### New features
+
+- Add new `RSPDiscovery` class for service discovery, creation of PyVO clients for specific services, and creation of requests sessions that are configured to send appropriate authentication credentials on all requests.
+- Add `User-Agent` headers providing the lsst.rsp version and, where appropriate, the PyVO version in clients returned by `RSPDiscovery`.
+- Add new `RSPDiscovery.get_token` class method that will replace `get_access_token`. It has similar behavior to `get_access_token` except it takes no arguments, prefers `/etc/nublado/secrets/token` if it exists, and prefers `NUBLADO_TOKEN` over `ACCESS_TOKEN` when getting the token from environment variables.
+
+### Bug fixes
+
+- Revert the service discovery approach underlying `get_tap_service`, `get_sia2_service`, and `get_query_history` to the pre-Repertoire approach. This should produce the same results for all existing deployments and will unblock adding new datasets to service discovery, which the new code mishandled.
+
 <a id='changelog-0.12.0'></a>
 ## 0.12.0 (2026-02-25)
 
