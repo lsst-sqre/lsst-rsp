@@ -93,7 +93,7 @@ def get_pyvo_auth() -> pyvo.auth.authsession.AuthSession | None:
         auth.add_security_method_for_url(url, "lsst-token")
 
         # Add standard subpaths for TAP services
-        if name in ["tap", "obstap", "ssotap", "consdbtap", "live"]:
+        if name in ["tap", "obstap", "ssotap", "consdbtap", "live", "ppdbtap"]:
             for subpath in ["/sync", "/async", "/tables"]:
                 auth.add_security_method_for_url(url + subpath, "lsst-token")
 
