@@ -388,6 +388,17 @@ class RSPDiscovery:
         for url in self._get_all_service_urls():
             auth.add_security_method_for_url(url, "lsst-token")
 
+        # Also register TAP subpaths explicitly. PyVO will look at the
+        # service capabilities and add the server's IVOA security methods for
+        # specific subpath URLs, which would take priority over the base URL
+        # lsst-token registration and cause auth to fail.
+        tap_url = self._discovery.get("services", {}).get("tap", {}).get("url")
+        if tap_url:
+            for subpath in ("/sync", "/async", "/tables"):
+                auth.add_security_method_for_url(
+                    tap_url + subpath, "lsst-token"
+                )
+
         # Return the configured authentication session.
         self._pyvo_auth = auth
         return auth
