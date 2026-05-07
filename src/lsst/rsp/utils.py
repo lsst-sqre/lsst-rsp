@@ -77,25 +77,20 @@ def get_pyvo_auth() -> pyvo.auth.authsession.AuthSession | None:
     auth = pyvo.auth.authsession.AuthSession()
     auth.credentials.set("lsst-token", s)
 
-    service_endpoints = {
-        "tap": get_service_url("tap"),
-        "obstap": get_service_url("obstap"),
-        "ssotap": get_service_url("ssotap"),
-        "consdbtap": get_service_url("consdbtap"),
-        "live": get_service_url("live"),
-        "ppdbtap": get_service_url("ppdbtap"),
-        "sia": get_service_url("sia"),
-        "cutout": get_service_url("cutout"),
-        "datalink": get_service_url("datalink"),
-    }
+    tap_urls = [
+        get_service_url(name)
+        for name in ("tap", "obstap", "ssotap", "consdbtap", "live", "ppdbtap")
+    ]
+    other_urls = [
+        get_service_url(name) for name in ("sia", "cutout", "datalink")
+    ]
 
-    for name, url in service_endpoints.items():
+    for url in tap_urls + other_urls:
         auth.add_security_method_for_url(url, "lsst-token")
 
-        # Add standard subpaths for TAP services
-        if name in ["tap", "obstap", "ssotap", "consdbtap", "live"]:
-            for subpath in ["/sync", "/async", "/tables"]:
-                auth.add_security_method_for_url(url + subpath, "lsst-token")
+    for url in tap_urls:
+        for subpath in ("/sync", "/async", "/tables"):
+            auth.add_security_method_for_url(url + subpath, "lsst-token")
 
     return auth
 
