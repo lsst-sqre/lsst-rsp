@@ -39,7 +39,6 @@ from .utils import (
 )
 
 __all__ = [
-    "DatasetNotSupportedError",
     "DiscoveryNotAvailableError",
     "IPythonHandler",
     "InfluxDBCredentials",
