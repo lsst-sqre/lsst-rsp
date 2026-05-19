@@ -6,6 +6,14 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.13.1'></a>
+## 0.13.1 (2026-05-19)
+
+### Bug fixes
+
+- Add ppdbtap to the standard subpaths for TAP services for authentication
+- Remove import DatasetNotSupportedError that no longer exists
+
 <a id='changelog-0.13.0'></a>
 ## 0.13.0 (2026-04-06)
 
