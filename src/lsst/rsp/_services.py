@@ -353,11 +353,19 @@ class RSPDiscovery:
         return f"lsst-rsp/{__version__} {user_agent}".strip()
 
     def _get_all_service_urls(self) -> set[str]:
-        """Return all service URLs for the configured dataset."""
+        """Return all service URLs for the configured dataset.
+
+        This is used to configure the URLs for which requests or PyVO should
+        send credentials.
+        """
         urls = set()
         for service in self._discovery.get("services", {}).values():
             if url := service.get("url"):
                 urls.add(url)
+            if versions := service.get("versions"):
+                for version in versions.values():
+                    if url := version.get("url"):
+                        urls.add(url)
         return urls
 
     def _get_pyvo_auth(self) -> AuthSession:
