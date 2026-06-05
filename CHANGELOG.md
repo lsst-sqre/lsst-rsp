@@ -6,13 +6,21 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.13.2'></a>
+## 0.13.2 (2026-06-05)
+
+### Bug fixes
+
+- Send authentication credentials to all URLs in the versions list for services, not only the base URL. This, in conjunction with updated service discovery information, will fix a failure to send authentication to the TAP tables endpoint via PyVO's TAP client.
+- When determining whether to send authentication credentials to a URL in the requests session returned by `get_session`, ignore query strings and fragments.
+
 <a id='changelog-0.13.1'></a>
 ## 0.13.1 (2026-05-19)
 
 ### Bug fixes
 
-- Add ppdbtap to the standard subpaths for TAP services for authentication
-- Remove import DatasetNotSupportedError that no longer exists
+- In the `get_tap_service` function, add ppdbtap to the standard subpaths for TAP services for authentication.
+- Remove non-existent `DatasetNotSupportedError` from `__all__` to avoid import errors with wildcards.
 
 <a id='changelog-0.13.0'></a>
 ## 0.13.0 (2026-04-06)
