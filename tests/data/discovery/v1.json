@@ -44,7 +44,7 @@
       "butler_config": "https://data.example.com/api/butler/repo/dp1/butler.yaml",
       "services": {
         "cutout": {
-          "url": "https://data.example.com/api/cutout",
+          "url": "https://data.example.com/api/cutouts",
           "versions": {
             "soda-async-1.0": {
               "url": "https://data.example.com/api/cutout/dp1/jobs"

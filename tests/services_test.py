@@ -81,6 +81,18 @@ def test_get_session(token: str, requests_mock: Mocker) -> None:
     assert r.status_code == 200
     assert r.text == "okay"
 
+    # Check the same for a URL under one of the versions.
+    url = services.get_service_url("cutout", version="soda-sync-1.0")
+    requests_mock.get(
+        url,
+        additional_matcher=_has_lsst_rsp_user_agent,
+        request_headers={"Authorization": f"Bearer {token}"},
+        text="okay",
+    )
+    r = session.get(url)
+    assert r.status_code == 200
+    assert r.text == "okay"
+
     def no_token(request: Any) -> bool:
         return "Authorization" not in request.headers
 
