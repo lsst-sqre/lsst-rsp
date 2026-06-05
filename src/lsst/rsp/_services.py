@@ -5,6 +5,7 @@ import os
 from contextlib import suppress
 from pathlib import Path
 from typing import Any, ClassVar, override
+from urllib.parse import urlparse, urlunparse
 
 import requests
 from pyvo.auth import AuthSession
@@ -50,7 +51,8 @@ class _RSPAuth(AuthBase):
     def __call__(self, request: PreparedRequest) -> PreparedRequest:
         if not request.url:
             return request
-        if request.url in self._urls or request.url.startswith(self._prefixes):
+        url = urlunparse(urlparse(request.url)._replace(query="", fragment=""))
+        if url in self._urls or url.startswith(self._prefixes):
             request.headers["Authorization"] = f"Bearer {self._token}"
         return request
 

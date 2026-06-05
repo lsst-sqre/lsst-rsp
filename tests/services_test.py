@@ -69,8 +69,22 @@ def test_get_session(token: str, requests_mock: Mocker) -> None:
     session = services.get_session()
 
     # Register a mock under one of the URLs for a service and ensure that the
-    # token is correctly sent.
+    # token is correctly sent. Check with and without query parameters.
     url = services.get_service_url("cutout")
+    requests_mock.get(
+        url,
+        additional_matcher=_has_lsst_rsp_user_agent,
+        request_headers={"Authorization": f"Bearer {token}"},
+        text="okay",
+    )
+    r = session.get(url)
+    assert r.status_code == 200
+    assert r.text == "okay"
+    r = session.get(url, params={"query": "something"})
+    assert r.status_code == 200
+    assert r.text == "okay"
+
+    # The token should also be sent to a child URL of that URL.
     requests_mock.get(
         url + "/jobs",
         additional_matcher=_has_lsst_rsp_user_agent,
@@ -81,7 +95,10 @@ def test_get_session(token: str, requests_mock: Mocker) -> None:
     assert r.status_code == 200
     assert r.text == "okay"
 
-    # Check the same for a URL under one of the versions.
+    # Check the same for a URL under one of the versions. The test discovery
+    # data puts these versions under a different URL prefix as the base URL
+    # for the service so that this test can verify that version URLs are
+    # registered separately.
     url = services.get_service_url("cutout", version="soda-sync-1.0")
     requests_mock.get(
         url,
