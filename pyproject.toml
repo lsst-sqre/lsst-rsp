@@ -62,9 +62,9 @@ docs = [
     "scriv",
 ]
 lint = [
-    "pre-commit",
-    "pre-commit-uv",
+    "prek",
     "ruff>=0.9",
+    "uv",
 ]
 tox = [
     "tox>=4.24",
