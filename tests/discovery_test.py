@@ -120,6 +120,19 @@ def test_list_influxdb_labels(discovery_v1_path: Path) -> None:
 
     assert list_influxdb_labels(discovery_v1_path=discovery_v1_path) == labels
 
+    databases = discovery["influxdb_databases"].items()
+    local = sorted(k for k, v in databases if v.get("local"))
+    remote = sorted(k for k, v in databases if not v.get("local"))
+
+    assert (
+        list_influxdb_labels(local=True, discovery_v1_path=discovery_v1_path)
+        == local
+    )
+    assert (
+        list_influxdb_labels(local=False, discovery_v1_path=discovery_v1_path)
+        == remote
+    )
+
 
 def test_missing_discovery() -> None:
     with patch.object(_discovery, "_DISCOVERY_PATH", new=Path("/nonexistent")):

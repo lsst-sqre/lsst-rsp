@@ -75,6 +75,7 @@
     "idfdev_metrics": {
       "url": "https://data.example.com/influxdb/",
       "database": "lsst.square.metrics",
+      "local": true,
       "schema_registry": "http://sasquatch-schema-registry.sasquatch:8081/",
       "credentials_url": "https://example.com/repertoire/discovery/influxdb/idfdev_metrics"
     }

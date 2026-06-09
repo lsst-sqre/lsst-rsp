@@ -30,6 +30,14 @@
     "idfdev_efd": {
       "url": "https://data.example.com/influxdb/",
       "database": "efd",
+      "local": false,
+      "schema_registry": "http://sasquatch-schema-registry.sasquatch:8081/",
+      "credentials_url": "https://example.com/repertoire/discovery/influxdb/idfdev_efd"
+    },
+    "idfdev_metrics": {
+      "url": "https://data.example.com/influxdb/",
+      "database": "efd",
+      "local": true,
       "schema_registry": "http://sasquatch-schema-registry.sasquatch:8081/",
       "credentials_url": "https://example.com/repertoire/discovery/influxdb/idfdev_efd"
     }

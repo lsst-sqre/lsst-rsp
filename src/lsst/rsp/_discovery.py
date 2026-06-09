@@ -274,12 +274,19 @@ def list_datasets(*, discovery_v1_path: Path | None = None) -> list[str]:
 
 
 def list_influxdb_labels(
-    *, discovery_v1_path: Path | None = None
+    *, local: bool | None = None, discovery_v1_path: Path | None = None
 ) -> list[str]:
     """List the available InfluxDB labels in this environment.
 
     Parameters
     ----------
+    local
+        If set to `True`, return only InfluxDB databases hosted in the local
+        Phalanx environment (the one whose service discovery service is being
+        queried). If set to `False`, return only InfluxDB databases that are
+        hosted outside this Phalanx environment. The default, `None`, lists
+        all accessible databases, local or not. This parameter is primarily
+        for testing and should normally not be provided.
     discovery_v1_path
         Path to discovery information. This is intended for testing and should
         normally not be provided. The default is the expected path to
@@ -299,4 +306,11 @@ def list_influxdb_labels(
     if not discovery_v1_path:
         discovery_v1_path = _DISCOVERY_PATH
     discovery = _get_discovery(discovery_v1_path)
-    return sorted(discovery.get("influxdb_databases", {}).keys())
+    if local is None:
+        return sorted(discovery.get("influxdb_databases", {}).keys())
+    else:
+        databases = discovery.get("influxdb_databases", {}).items()
+        if local:
+            return sorted(k for k, v in databases if v.get("local"))
+        else:
+            return sorted(k for k, v in databases if not v.get("local"))
