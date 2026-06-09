@@ -24,12 +24,6 @@ def discovery_path(data: Data, fs: FakeFilesystem) -> Path:
 
 
 @pytest.fixture
-def discovery_v1_path() -> Path:
-    """Delete once older functions and tests are retired."""
-    return Path(__file__).parent / "data" / "discovery" / "v1.json"
-
-
-@pytest.fixture
 def token(monkeypatch: pytest.MonkeyPatch) -> str:
     monkeypatch.setenv("NUBLADO_TOKEN", "some-token")
     return "some-token"

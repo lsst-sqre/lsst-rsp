@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 import respx
 from httpx import Request, Response
+from pyfakefs.fake_filesystem import FakeFilesystem
 from safir.testing.data import Data
 
 from lsst.rsp import (
@@ -25,54 +26,50 @@ from lsst.rsp import (
     list_datasets,
     list_influxdb_labels,
 )
+from lsst.rsp._discovery import _DISCOVERY_PATH
 
 
-def test_get_service_url(discovery_v1_path: Path) -> None:
-    discovery = json.loads(discovery_v1_path.read_text())
+def test_get_service_url(discovery_path: Path) -> None:
+    discovery = json.loads(discovery_path.read_text())
 
     expected = discovery["datasets"]["dp1"]["services"]["sia"]["url"]
-    result = get_service_url("sia", "dp1", discovery_v1_path=discovery_v1_path)
+    result = get_service_url("sia", "dp1")
     assert result == expected
     expected = discovery["datasets"]["dp02"]["services"]["cutout"]["url"]
-    result = get_service_url(
-        "cutout", "dp02", discovery_v1_path=discovery_v1_path
-    )
+    result = get_service_url("cutout", "dp02")
     assert result == expected
 
     with pytest.raises(UnknownServiceError):
-        get_service_url("sia", "dp03", discovery_v1_path=discovery_v1_path)
+        get_service_url("sia", "dp03")
 
     with pytest.raises(UnknownDatasetError):
-        get_service_url(
-            "cutout", "unknown", discovery_v1_path=discovery_v1_path
-        )
+        get_service_url("cutout", "unknown")
 
     with pytest.raises(UnknownServiceError):
-        get_service_url("foo", "dp1", discovery_v1_path=discovery_v1_path)
+        get_service_url("foo", "dp1")
 
 
-def test_get_influxdb_location(discovery_v1_path: Path) -> None:
-    discovery = json.loads(discovery_v1_path.read_text())
+def test_get_influxdb_location(discovery_path: Path) -> None:
+    discovery = json.loads(discovery_path.read_text())
 
     expected = discovery["influxdb_databases"]["idfdev_efd"]
-    location = get_influxdb_location(
-        "idfdev_efd", discovery_v1_path=discovery_v1_path
-    )
+    location = get_influxdb_location("idfdev_efd")
     assert location.url == expected["url"]
     assert location.database == expected["database"]
     assert location.schema_registry == expected["schema_registry"]
 
     with pytest.raises(UnknownInfluxDBError):
-        get_influxdb_location("unknown", discovery_v1_path=discovery_v1_path)
+        get_influxdb_location("unknown")
 
 
 def test_get_influxdb_credentials(
+    *,
     data: Data,
-    discovery_v1_path: Path,
+    discovery_path: Path,
     respx_mock: respx.Router,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    discovery = json.loads(discovery_v1_path.read_text())
+    discovery = json.loads(discovery_path.read_text())
     efd_data = discovery["influxdb_databases"]["idfdev_efd"]
     credentials_url = efd_data["credentials_url"]
 
@@ -83,13 +80,9 @@ def test_get_influxdb_credentials(
     respx_mock.get(credentials_url).mock(side_effect=handler)
 
     with pytest.raises(TokenNotAvailableError):
-        get_influxdb_credentials(
-            "idfdev_efd", discovery_v1_path=discovery_v1_path
-        )
+        get_influxdb_credentials("idfdev_efd")
 
-    credentials = get_influxdb_credentials(
-        "idfdev_efd", "some-token", discovery_v1_path=discovery_v1_path
-    )
+    credentials = get_influxdb_credentials("idfdev_efd", "some-token")
     expected = data.read_json("discovery/idfdev_efd")
     assert credentials.url == expected["url"]
     assert credentials.database == expected["database"]
@@ -98,40 +91,32 @@ def test_get_influxdb_credentials(
     assert credentials.password == expected["password"]
 
     monkeypatch.setenv("ACCESS_TOKEN", "some-token")
-    result = get_influxdb_credentials(
-        "idfdev_efd", discovery_v1_path=discovery_v1_path
-    )
+    result = get_influxdb_credentials("idfdev_efd")
     assert result == credentials
 
     with pytest.raises(UnknownInfluxDBError):
-        get_influxdb_location("unknown", discovery_v1_path=discovery_v1_path)
+        get_influxdb_location("unknown")
 
 
-def test_list_datasets(discovery_v1_path: Path) -> None:
-    discovery = json.loads(discovery_v1_path.read_text())
+def test_list_datasets(discovery_path: Path) -> None:
+    discovery = json.loads(discovery_path.read_text())
     datasets = sorted(discovery["datasets"].keys())
 
-    assert list_datasets(discovery_v1_path=discovery_v1_path) == datasets
+    assert list_datasets() == datasets
 
 
-def test_list_influxdb_labels(discovery_v1_path: Path) -> None:
-    discovery = json.loads(discovery_v1_path.read_text())
+def test_list_influxdb_labels(discovery_path: Path) -> None:
+    discovery = json.loads(discovery_path.read_text())
     labels = sorted(discovery["influxdb_databases"].keys())
 
-    assert list_influxdb_labels(discovery_v1_path=discovery_v1_path) == labels
+    assert list_influxdb_labels() == labels
 
     databases = discovery["influxdb_databases"].items()
     local = sorted(k for k, v in databases if v.get("local"))
     remote = sorted(k for k, v in databases if not v.get("local"))
 
-    assert (
-        list_influxdb_labels(local=True, discovery_v1_path=discovery_v1_path)
-        == local
-    )
-    assert (
-        list_influxdb_labels(local=False, discovery_v1_path=discovery_v1_path)
-        == remote
-    )
+    assert list_influxdb_labels(local=True) == local
+    assert list_influxdb_labels(local=False) == remote
 
 
 def test_missing_discovery() -> None:
@@ -149,9 +134,14 @@ def test_missing_discovery() -> None:
 
 
 def test_invalid_discovery(
-    data: Data, respx_mock: respx.Router, monkeypatch: pytest.MonkeyPatch
+    *,
+    data: Data,
+    fs: FakeFilesystem,
+    respx_mock: respx.Router,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     invalid_path = data.path("discovery/v1-invalid.json")
+    fs.add_real_file(invalid_path, target_path=_DISCOVERY_PATH)
     monkeypatch.setenv("ACCESS_TOKEN", "some-token")
 
     def handler(request: Request) -> Response:
@@ -165,20 +155,20 @@ def test_invalid_discovery(
     respx_mock.get(credentials_url).mock(side_effect=handler)
 
     with pytest.raises(UnknownServiceError):
-        get_service_url("cutout", "dp02", discovery_v1_path=invalid_path)
+        get_service_url("cutout", "dp02")
     with pytest.raises(InvalidDiscoveryError):
-        get_influxdb_location("idfdev_efd", discovery_v1_path=invalid_path)
+        get_influxdb_location("idfdev_efd")
     with pytest.raises(InvalidDiscoveryError):
-        get_influxdb_credentials("idfdev_efd", discovery_v1_path=invalid_path)
+        get_influxdb_credentials("idfdev_efd")
 
 
-def test_empty(data: Data) -> None:
+def test_empty(data: Data, fs: FakeFilesystem) -> None:
     empty_path = data.path("discovery/empty.json")
-    with patch.object(_discovery, "_DISCOVERY_PATH", new=empty_path):
-        assert list_influxdb_labels() == []
-        with pytest.raises(UnknownDatasetError):
-            get_service_url("sia", "dp1")
-        with pytest.raises(UnknownInfluxDBError):
-            get_influxdb_location("idfdev_efd")
-        with pytest.raises(UnknownInfluxDBError):
-            get_influxdb_credentials("idfdev_efd")
+    fs.add_real_file(empty_path, target_path=_DISCOVERY_PATH)
+    assert list_influxdb_labels() == []
+    with pytest.raises(UnknownDatasetError):
+        get_service_url("sia", "dp1")
+    with pytest.raises(UnknownInfluxDBError):
+        get_influxdb_location("idfdev_efd")
+    with pytest.raises(UnknownInfluxDBError):
+        get_influxdb_credentials("idfdev_efd")

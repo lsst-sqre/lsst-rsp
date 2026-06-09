@@ -65,13 +65,8 @@ class InfluxDBCredentials(InfluxDBLocation):
     """Password to use for authentication."""
 
 
-def _get_discovery(path: Path) -> dict[str, Any]:
+def _get_discovery() -> dict[str, Any]:
     """Get the data and service discovery information.
-
-    Parameters
-    ----------
-    path
-        Path to discovery information.
 
     Returns
     -------
@@ -84,7 +79,7 @@ def _get_discovery(path: Path) -> dict[str, Any]:
         Raised if no service discovery information is available.
     """
     try:
-        return json.loads(path.read_text())
+        return json.loads(_DISCOVERY_PATH.read_text())
     except FileNotFoundError as e:
         raise DiscoveryNotAvailableError(e) from e
 
@@ -92,8 +87,6 @@ def _get_discovery(path: Path) -> dict[str, Any]:
 def get_influxdb_credentials(
     label: str,
     token: str | None = None,
-    *,
-    discovery_v1_path: Path | None = None,
 ) -> InfluxDBCredentials:
     """Get the credentials for an InfluxDB database.
 
@@ -104,10 +97,6 @@ def get_influxdb_credentials(
     token
         If given, use this Gafaelfawr token instead of the local notebook
         token.
-    discovery_v1_path
-        Path to discovery information. This is intended for testing and should
-        normally not be provided. The default is the expected path to
-        discovery information within a Nublado notebook.
 
     Returns
     -------
@@ -125,9 +114,7 @@ def get_influxdb_credentials(
     UnknownInfluxDBError
         Raised if the InfluxDB database is not known.
     """
-    if not discovery_v1_path:
-        discovery_v1_path = _DISCOVERY_PATH
-    discovery = _get_discovery(discovery_v1_path)
+    discovery = _get_discovery()
     influxdb = discovery.get("influxdb_databases", {}).get(label)
     if not influxdb:
         raise UnknownInfluxDBError(label)
@@ -160,19 +147,13 @@ def get_influxdb_credentials(
         raise InvalidDiscoveryError(e, f"InfluxDB creds for {label}") from e
 
 
-def get_influxdb_location(
-    label: str, *, discovery_v1_path: Path | None = None
-) -> InfluxDBLocation:
+def get_influxdb_location(label: str) -> InfluxDBLocation:
     """Get the location information for an InfluxDB database.
 
     Parameters
     ----------
     label
         Human label for the InfluxDB database.
-    discovery_v1_path
-        Path to discovery information. This is intended for testing and should
-        normally not be provided. The default is the expected path to
-        discovery information within a Nublado notebook.
 
     Returns
     -------
@@ -188,9 +169,7 @@ def get_influxdb_location(
     UnknownInfluxDBError
         Raised if the InfluxDB database is not known.
     """
-    if not discovery_v1_path:
-        discovery_v1_path = _DISCOVERY_PATH
-    discovery = _get_discovery(discovery_v1_path)
+    discovery = _get_discovery()
     influxdb = discovery.get("influxdb_databases", {}).get(label)
     if not influxdb:
         raise UnknownInfluxDBError(label)
@@ -204,9 +183,7 @@ def get_influxdb_location(
         raise InvalidDiscoveryError(e, f"InfluxDB database {label}") from e
 
 
-def get_service_url(
-    service: str, dataset: str, *, discovery_v1_path: Path | None = None
-) -> str:
+def get_service_url(service: str, dataset: str) -> str:
     """Get the API URL for a service and dataset combination.
 
     Parameters
@@ -215,10 +192,6 @@ def get_service_url(
         Name of the service.
     dataset
         Name of the dataset.
-    discovery_v1_path
-        Path to discovery information. This is intended for testing and should
-        normally not be provided. The default is the expected path to
-        discovery information within a Nublado notebook.
 
     Returns
     -------
@@ -235,9 +208,7 @@ def get_service_url(
         Raised if this service is not present in the environment for this
         dataset.
     """
-    if not discovery_v1_path:
-        discovery_v1_path = _DISCOVERY_PATH
-    discovery = _get_discovery(discovery_v1_path)
+    discovery = _get_discovery()
     dataset_info = discovery.get("datasets", {}).get(dataset)
     if not dataset_info:
         raise UnknownDatasetError(dataset)
@@ -247,15 +218,8 @@ def get_service_url(
     return url
 
 
-def list_datasets(*, discovery_v1_path: Path | None = None) -> list[str]:
+def list_datasets() -> list[str]:
     """List the available datasets in this environment.
-
-    Parameters
-    ----------
-    discovery_v1_path
-        Path to discovery information. This is intended for testing and should
-        normally not be provided. The default is the expected path to
-        discovery information within a Nublado notebook.
 
     Returns
     -------
@@ -267,15 +231,11 @@ def list_datasets(*, discovery_v1_path: Path | None = None) -> list[str]:
     DiscoveryNotAvailableError
         Raised if no service discovery information is available.
     """
-    if not discovery_v1_path:
-        discovery_v1_path = _DISCOVERY_PATH
-    discovery = _get_discovery(discovery_v1_path)
+    discovery = _get_discovery()
     return sorted(discovery.get("datasets", {}).keys())
 
 
-def list_influxdb_labels(
-    *, local: bool | None = None, discovery_v1_path: Path | None = None
-) -> list[str]:
+def list_influxdb_labels(*, local: bool | None = None) -> list[str]:
     """List the available InfluxDB labels in this environment.
 
     Parameters
@@ -287,10 +247,6 @@ def list_influxdb_labels(
         hosted outside this Phalanx environment. The default, `None`, lists
         all accessible databases, local or not. This parameter is primarily
         for testing and should normally not be provided.
-    discovery_v1_path
-        Path to discovery information. This is intended for testing and should
-        normally not be provided. The default is the expected path to
-        discovery information within a Nublado notebook.
 
     Returns
     -------
@@ -303,9 +259,7 @@ def list_influxdb_labels(
     DiscoveryNotAvailableError
         Raised if no service discovery information is available.
     """
-    if not discovery_v1_path:
-        discovery_v1_path = _DISCOVERY_PATH
-    discovery = _get_discovery(discovery_v1_path)
+    discovery = _get_discovery()
     if local is None:
         return sorted(discovery.get("influxdb_databases", {}).keys())
     else:
