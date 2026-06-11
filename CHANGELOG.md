@@ -6,6 +6,18 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-1.0.0'></a>
+## 1.0.0 (2026-06-11)
+
+### Backwards-incompatible changes
+
+- Drop `discovery_v1_path` as an optional argument from all discovery functions. This was only used for testing.
+
+### New features
+
+- Add new parameter, `local`, to `list_influxdb_labels`, allowing the caller to request only the local or only the remote InfluxDB databases.
+- Add new `RSPInternalDiscovery` class intended for RSP administrators to discover internal services for notebook testing. This class should not be used by regular users.
+
 <a id='changelog-0.13.2'></a>
 ## 0.13.2 (2026-06-05)
 
