@@ -18,7 +18,7 @@ from ._exceptions import (
     UnknownServiceError,
 )
 from ._history import get_query_history
-from ._services import RSPDiscovery
+from ._services import RSPDiscovery, RSPInternalDiscovery
 from ._version import __version__
 from .catalog import (
     get_catalog,
@@ -46,6 +46,7 @@ __all__ = [
     "InvalidDiscoveryError",
     "RSPClient",
     "RSPDiscovery",
+    "RSPInternalDiscovery",
     "TokenNotAvailableError",
     "UnknownDatasetError",
     "UnknownInfluxDBError",
