@@ -56,9 +56,8 @@ class UnknownInfluxDBError(Exception):
 class UnknownServiceError(Exception):
     """Requested service is not present in this environment."""
 
-    def __init__(self, service: str, dataset: str) -> None:
-        msg = (
-            f"Service {service} is not present in this environment for"
-            f" dataset {dataset}"
-        )
+    def __init__(self, service: str, dataset: str | None = None) -> None:
+        msg = f"Service {service} is not present in this environment"
+        if dataset:
+            msg += f" for dataset {dataset}"
         super().__init__(msg)

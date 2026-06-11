@@ -18,5 +18,16 @@
       "schema_registry": "http://sasquatch-schema-registry.sasquatch:8081/",
       "credentials_url": "https://example.com/repertoire/discovery/influxdb/idfdev_efd"
     }
+  },
+  "services": {
+    "internal": {
+      "gafaelfawr": {
+        "versions": {
+          "v1": {
+            "url": "https://data.example.com/auth/v1"
+          }
+        }
+      }
+    }
   }
 }

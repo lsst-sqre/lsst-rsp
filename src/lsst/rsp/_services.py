@@ -25,7 +25,75 @@ from ._exceptions import (
 )
 from ._version import __version__
 
-__all__ = ["RSPDiscovery"]
+__all__ = ["RSPDiscovery", "RSPInternalDiscovery"]
+
+
+def _build_user_agent(session: requests.Session) -> str:
+    """Construct a ``User-Agent`` header.
+
+    Start from the ``User-Agent`` header in the session, if any, and
+    prepend the version of the lsst.rsp module.
+
+    Parameters
+    ----------
+    session
+        The requests session.
+
+    Returns
+    -------
+    str
+        ``User-Agent`` string to use.
+    """
+    user_agent = session.headers.get("User-Agent", "")
+    if isinstance(user_agent, bytes):
+        user_agent = user_agent.decode()
+    return f"lsst-rsp/{__version__} {user_agent}".strip()
+
+
+def _fetch_discovery(url: str) -> dict[str, Any]:
+    """Fetch discovery information from Repertoire.
+
+    Parameters
+    ----------
+    url
+        Base URL of the Repertoire service.
+
+    Returns
+    -------
+    dict
+        Discovery information as a nested dictionary.
+    """
+    try:
+        with requests.Session() as session:
+            session.headers["User-Agent"] = _build_user_agent(session)
+            r = session.get(url.rstrip("/") + "/discovery", timeout=10)
+            r.raise_for_status()
+            return r.json()
+    except InvalidJSONError as e:
+        raise InvalidDiscoveryError(e) from e
+    except RequestException as e:
+        raise DiscoveryNotAvailableError(e) from e
+
+
+def _read_discovery(path: Path) -> dict[str, Any]:
+    """Read discovery information from an on-disk path.
+
+    Parameters
+    ----------
+    path
+        Path to the discovery information.
+
+    Returns
+    -------
+    dict
+        Discovery information as a nested dictionary.
+    """
+    try:
+        return json.loads(path.read_text())
+    except FileNotFoundError as e:
+        raise DiscoveryNotAvailableError(e) from e
+    except json.JSONDecodeError as e:
+        raise InvalidDiscoveryError(e) from e
 
 
 class _RSPAuth(AuthBase):
@@ -74,7 +142,7 @@ class RSPDiscovery:
     ----------
     dataset
         Label for the dataset that will be accessed. Create a separate
-        instance of `RSPServices` for each dataset you wish to use.
+        instance of `RSPDiscovery` for each dataset you wish to use.
     discovery_url
         Base URL to discovery services. This should not be provided when
         running inside Nublado. It allows the class to be used outside of
@@ -180,9 +248,9 @@ class RSPDiscovery:
             Raised if the discovery information has an invalid syntax.
         """
         if discovery_url:
-            discovery = cls._fetch_discovery(discovery_url)
+            discovery = _fetch_discovery(discovery_url)
         else:
-            discovery = cls._read_discovery(cls._DISCOVERY_PATH)
+            discovery = _read_discovery(cls._DISCOVERY_PATH)
         return list(discovery.get("datasets", {}).keys())
 
     def __init__(
@@ -198,9 +266,9 @@ class RSPDiscovery:
 
         # Get the discovery information for the given dataset.
         if discovery_url:
-            discovery = self._fetch_discovery(discovery_url)
+            discovery = _fetch_discovery(discovery_url)
         else:
-            discovery = self._read_discovery(self._DISCOVERY_PATH)
+            discovery = _read_discovery(self._DISCOVERY_PATH)
         dataset_info = discovery.get("datasets", {}).get(dataset)
         if dataset_info is None:
             raise UnknownDatasetError(dataset)
@@ -273,7 +341,7 @@ class RSPDiscovery:
             the request is to an RSP service.
         """
         session = requests.Session()
-        session.headers["User-Agent"] = self._build_user_agent(session)
+        session.headers["User-Agent"] = _build_user_agent(session)
         session.auth = _RSPAuth(self._token, self._get_all_service_urls())
         return session
 
@@ -332,28 +400,6 @@ class RSPDiscovery:
         """
         return AsyncTAPJob(url, session=self._get_pyvo_auth())
 
-    @staticmethod
-    def _build_user_agent(session: requests.Session) -> str:
-        """Construct a ``User-Agent`` header.
-
-        Start from the ``User-Agent`` header in the session, if any, and
-        prepend the version of the lsst.rsp module.
-
-        Parameters
-        ----------
-        session
-            The requests session.
-
-        Returns
-        -------
-        str
-            ``User-Agent`` string to use.
-        """
-        user_agent = session.headers.get("User-Agent", "")
-        if isinstance(user_agent, bytes):
-            user_agent = user_agent.decode()
-        return f"lsst-rsp/{__version__} {user_agent}".strip()
-
     def _get_all_service_urls(self) -> set[str]:
         """Return all service URLs for the configured dataset.
 
@@ -387,7 +433,7 @@ class RSPDiscovery:
         # We haven't built a PyVO auth session yet, so do so.
         session = create_session()
         session.headers["Authorization"] = f"Bearer {self._token}"
-        session.headers["User-Agent"] = self._build_user_agent(session)
+        session.headers["User-Agent"] = _build_user_agent(session)
         auth = AuthSession()
         auth.credentials.set("lsst-token", session)
 
@@ -402,48 +448,125 @@ class RSPDiscovery:
         self._pyvo_auth = auth
         return auth
 
-    @classmethod
-    def _fetch_discovery(cls, url: str) -> dict[str, Any]:
-        """Fetch discovery information from Repertoire.
+
+class RSPInternalDiscovery:
+    """Look up Rubin Science Platform internal services.
+
+    Provides an API to discovery the URLs of internal services and build
+    clients that send appropriate authentication credentials to service
+    requests.
+
+    .. warning::
+
+       This class should not be used unless you are testing internal Rubin
+       Science Platform services that are not intended for general users. None
+       of the services discovered via this class are intended for direct
+       access, and all of them may change without notice.
+
+    Parameters
+    ----------
+    discovery_url
+        Base URL to discovery services. This should not be provided when
+        running inside Nublado. It allows the class to be used outside of
+        Nublado and pointed to a particular instance of the Rubin Science
+        Platform. If given, the URL should be the base URL for the Repertoire
+        service.
+    token
+        Authentication token to use. This parameter can and should be omitted
+        when called from inside a Nublado notebook.
+
+    Raises
+    ------
+    DiscoveryNotAvailableError
+        Raised if no service discovery information is available.
+    InvalidDiscoveryError
+        Raised if the discovery information has an invalid syntax.
+    TokenNotAvailableError
+        Raised if there is no Gafaelfawr token available.
+    UnknownDatasetError
+        Raised if this dataset is not present in the environment.
+    """
+
+    def __init__(
+        self,
+        discovery_url: str | None = None,
+        token: str | None = None,
+    ) -> None:
+        self._token = token or RSPDiscovery.get_token()
+
+        # Get the internal service discovery information.
+        if discovery_url:
+            discovery = _fetch_discovery(discovery_url)
+        else:
+            path = RSPDiscovery._DISCOVERY_PATH  # noqa: SLF001
+            discovery = _read_discovery(path)
+        self._services = discovery.get("services", {}).get("internal", {})
+
+    def get_internal_service_url(
+        self, service: str, *, version: str | None = None
+    ) -> str:
+        """Get the API URL for an internal service.
 
         Parameters
         ----------
-        url
-            Base URL of the Repertoire service.
+        service
+            Name of the internal service.
+        version
+            Optional API version. If given, get the specific base URL of that
+            version of the API instead of the base URL of the service as a
+            whole.
 
         Returns
         -------
-        dict
-            Discovery information as a nested dictionary.
+        str
+            Base URL for the internal service API.
+
+        Raises
+        ------
+        UnknownServiceError
+            Raised if this service is not present in this environment.
         """
-        try:
-            with requests.Session() as session:
-                session.headers["User-Agent"] = cls._build_user_agent(session)
-                r = session.get(url.rstrip("/") + "/discovery", timeout=10)
-                r.raise_for_status()
-                return r.json()
-        except InvalidJSONError as e:
-            raise InvalidDiscoveryError(e) from e
-        except RequestException as e:
-            raise DiscoveryNotAvailableError(e) from e
+        data = self._services.get(service, {})
+        if version:
+            url = data.get("versions", {}).get(version, {}).get("url")
+        else:
+            url = data.get("url")
+        if not url:
+            raise UnknownServiceError(service)
+        return url
 
-    @staticmethod
-    def _read_discovery(path: Path) -> dict[str, Any]:
-        """Read discovery information from an on-disk path.
+    def get_session(self) -> requests.Session:
+        """Get a requests session that sends a token only to service URLs.
 
-        Parameters
-        ----------
-        path
-            Path to the discovery information.
+        The resulting requests session can be used to make any HTTP requests,
+        and will include the bearer token in the ``Authorization`` header only
+        if the request goes to a URL under one of the base service URLs.
 
         Returns
         -------
-        dict
-            Discovery information as a nested dictionary.
+        requests.Session
+            Requests session configured to send an authentication token if
+            the request is to an RSP internal service. This session cannot
+            be used with data services; for that, use
+            `RSPDiscovery.get_session`.
         """
-        try:
-            return json.loads(path.read_text())
-        except FileNotFoundError as e:
-            raise DiscoveryNotAvailableError(e) from e
-        except json.JSONDecodeError as e:
-            raise InvalidDiscoveryError(e) from e
+        session = requests.Session()
+        session.headers["User-Agent"] = _build_user_agent(session)
+        session.auth = _RSPAuth(self._token, self._get_all_service_urls())
+        return session
+
+    def _get_all_service_urls(self) -> set[str]:
+        """Return all internal service URLs for the configured dataset.
+
+        This is used to configure the URLs for which requests should send
+        credentials.
+        """
+        urls = set()
+        for service in self._services.values():
+            if url := service.get("url"):
+                urls.add(url)
+            if versions := service.get("versions"):
+                for version in versions.values():
+                    if url := version.get("url"):
+                        urls.add(url)
+        return urls
