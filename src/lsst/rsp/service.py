@@ -17,7 +17,7 @@ def get_datalink_result(result: ObsCoreRecord) -> DatalinkResults:
 
 
 def get_siav2_service(data_release: str) -> SIA2Service:
-    """Construct an `SIA2Service` client."""
+    """Construct an `~pyvo.dal.SIA2Service` client."""
     # data_release determines the Data release, as we may have different
     # releases being served from the same server.
 

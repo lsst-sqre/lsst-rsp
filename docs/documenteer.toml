@@ -1,0 +1,31 @@
+[project]
+title = "lsst.rsp"
+copyright = "2026 Association of Universities for Research in Astronomy, Inc. (AURA)"
+
+[project.python]
+package = "lsst.rsp"
+
+[sphinx]
+disable_primary_sidebars = ["index"]
+nitpick_ignore = [
+    # Bug in Sphinx with Python 3.14
+    ["py:data", "typing.Union"],
+    # logging.Filterer is an undocumented internal base class, absent from
+    # CPython's object inventory.
+    ["py:class", "logging.Filterer"],
+]
+
+[sphinx.intersphinx.projects]
+astropy = "https://docs.astropy.org/en/stable"
+numpy = "https://numpy.org/doc/stable"
+pandas = "https://pandas.pydata.org/docs"
+python = "https://docs.python.org/3"
+pyvo = "https://pyvo.readthedocs.io/en/latest"
+requests = "https://requests.readthedocs.io/en/latest"
+
+[sphinx.linkcheck]
+ignore = [
+    # Generate redirects for authentication
+    '^https://github\.com/settings/developers$',
+    '^https://github\.com/.*/issues/new$',
+]
