@@ -6,6 +6,13 @@ Find changes for the upcoming release in the project's [changelog.d directory](h
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-1.0.1'></a>
+## 1.0.1 (2026-06-18)
+
+### Bug fixes
+
+- Fix references in the lsst.rsp API documentation so that it can be generated correctly with Sphinx.
+
 <a id='changelog-1.0.0'></a>
 ## 1.0.0 (2026-06-11)
 
