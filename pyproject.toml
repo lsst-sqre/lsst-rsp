@@ -10,7 +10,7 @@ keywords = [
 ]
 # https://pypi.org/classifiers/
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
@@ -59,6 +59,7 @@ dev = [
     "safir>=14.3",
 ]
 docs = [
+    "documenteer[guide]>=2",
     "scriv",
 ]
 lint = [

@@ -224,7 +224,7 @@ class RSPDiscovery:
         """List the available datasets.
 
         These will be the valid arguments for the ``dataset`` parameter to the
-        `RESPDiscovery` constructor.
+        `RSPDiscovery` constructor.
 
         Parameters
         ----------
@@ -287,7 +287,7 @@ class RSPDiscovery:
 
         Returns
         -------
-        DatalinkResults
+        pyvo.dal.adhoc.DatalinkResults
             Results object that can be used to follow DataLink pointers.
         """
         return DatalinkResults.from_result_url(
@@ -350,7 +350,7 @@ class RSPDiscovery:
 
         Returns
         -------
-        SIA2Service
+        pyvo.dal.SIA2Service
             PyVO SIAv2 client configured with an appropriate base URL and
             authentication credentials.
 
@@ -367,7 +367,7 @@ class RSPDiscovery:
 
         Returns
         -------
-        TAPService
+        pyvo.dal.TAPService
             PyVO TAP client configured with an appropriate base URL and
             authentication credentials.
 
@@ -394,7 +394,7 @@ class RSPDiscovery:
 
         Returns
         -------
-        AsyncTAPJob
+        pyvo.dal.AsyncTAPJob
             Object representing the underlying job, which can be used to
             retrieve its results or other metadata.
         """
