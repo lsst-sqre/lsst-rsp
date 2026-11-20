@@ -1,5 +1,6 @@
 """Collection of utilities for Rubin Science Platform notebooks."""
 
+from ._browse import browse
 from ._discovery import (
     InfluxDBCredentials,
     InfluxDBLocation,
@@ -52,6 +53,7 @@ __all__ = [
     "UnknownInfluxDBError",
     "UnknownServiceError",
     "__version__",
+    "browse",
     "format_bytes",
     "forward_lsst_log",
     "get_access_token",
